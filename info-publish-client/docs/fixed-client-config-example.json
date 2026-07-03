@@ -1,0 +1,175 @@
+{
+  "monitorPlatformUrl": "http://192.168.1.233:8080",
+  "serverId": "44010100003330003024_788A19",
+  "serverCertPath": "certs/44010100003330003024_788A19_SIGN.cer",
+  "clientCertPath": "certs/44010100003330068068_436F12_SIGN.cer",
+  "authId": "44010100003330068068",
+  "password": "123456",
+  "mockMode": false,
+  "spring": {
+    "application": {
+      "name": "info-publish-client"
+    },
+    "cloud": {
+      "compatibilityVerifier": {
+        "enabled": false
+      }
+    },
+    "datasource": {
+      "driverClassName": "com.mysql.jdbc.Driver",
+      "url": "jdbc:mysql://192.168.1.31:3306/info_publish_client?useUnicode=true&characterEncoding=utf8&useSSL=false",
+      "username": "root",
+      "password": "root123456"
+    },
+    "servlet": {
+      "multipart": {
+        "maxFileSize": "500MB",
+        "maxRequestSize": "1000MB"
+      }
+    }
+  },
+  "mybatisPlus": {
+    "configuration": {
+      "mapUnderscoreToCamelCase": true
+    },
+    "globalConfig": {
+      "dbConfig": {
+        "idType": "auto"
+      }
+    }
+  },
+  "monitorPlatform": {
+    "url": "http://192.168.1.233:8080",
+    "clientId": "ipc-a17a9a"
+  },
+  "security": {
+    "gatewaySourceValidationEnabled": true
+  },
+  "processBind": {
+    "enabled": true,
+    "endpointSourceValidationEnabled": true,
+    "periodicIntegrityRecheckEnabled": false,
+    "targetProcessName": "Sigma Play.exe",
+    "targetProcessSearchRoots": "D:/SecurePublish/runtime",
+    "targetProcessPath": "D:/SecurePublish/runtime/Sigma Play.exe",
+    "targetProcessMd5": "e7133aefa9e2f7d80c7275027187a037",
+    "autoStartEnabled": true,
+    "startWaitMillis": 15000,
+    "startPollMillis": 500,
+    "guardEnabled": true,
+    "guardMode": "hybrid",
+    "guardCheckIntervalMillis": 2000,
+    "pidAliveCacheMillis": 2000,
+    "udpTableCacheMillis": 200,
+    "integrityCacheMillis": 1000,
+    "integrityHashCacheMillis": 30000
+  },
+  "traffic": {
+    "etwAccounting": {
+      "enabled": true,
+      "windowMs": 10000,
+      "retentionMs": 120000,
+      "maxRecords": 20000
+    },
+    "etwCollector": {
+      "enabled": true,
+      "autoStart": true,
+      "sessionName": "InfoPublishClientUdpEtw",
+      "workDir": "",
+      "rotateIntervalMs": 10000,
+      "commandTimeoutMs": 10000,
+      "deleteEtlAfterParse": true
+    }
+  },
+  "windivert": {
+    "enabled": true,
+    "mode": "proxy",
+    "filter": "udp and outbound",
+    "dllPath": "windivert",
+    "queueLength": 4096,
+    "queueTimeMs": 2000,
+    "cacheTtlMs": 10000,
+    "deleteRetainMs": 2000,
+    "fallbackToUdpTable": true,
+    "shadow": {
+      "enabled": true,
+      "packetFilter": "udp and outbound",
+      "maxPacketSize": 65535,
+      "eventRetention": 500,
+      "payloadSampleBytes": 0,
+      "logUnknownProcess": true,
+      "pidLookupRetryCount": 3,
+      "pidLookupRetryDelayMs": 30
+    }
+  },
+  "processPolicy": {
+    "enabled": true,
+    "whitelist": [
+      "Sigma Play.exe"
+    ],
+    "blockUnknownProcess": false,
+    "processInfoCacheMs": 5000
+  },
+  "transparentProxy": {
+    "enabled": true,
+    "filter": "udp and outbound and !impostor and udp.DstPort == 9520",
+    "relayHost": "192.168.1.233",
+    "relayPort": 18092,
+    "targetPorts": [
+      9520
+    ],
+    "failOpen": false,
+    "maxPacketSize": 65535,
+    "pidLookupRetryCount": 5,
+    "pidLookupRetryDelayMs": 30,
+    "signPacket": false,
+    "signatureSecret": "",
+    "requireUkeyAuthentication": true
+  },
+  "relayFileSignature": {
+    "enabled": false
+  },
+  "contentPreAudit": {
+    "enabled": false,
+    "mode": "audit",
+    "tokenRequired": false,
+    "ackSimulationEnabled": false,
+    "ackLearningEnabled": false
+  },
+  "securePublish": {
+    "enabled": true,
+    "incomingDir": "D:/SecurePublish/incoming",
+    "verifiedDir": "D:/SecurePublish/verified",
+    "runtimeDir": "D:/SecurePublish/runtime",
+    "rejectedDir": "D:/SecurePublish/rejected",
+    "tempDir": "D:/SecurePublish/temp",
+    "scanIntervalMs": 2000,
+    "maxPackageSizeMb": 500,
+    "testPackageEnabled": false,
+    "signerEnabled": true,
+    "signerInputDir": "D:/SecurePublish/signer/incoming",
+    "signerOutputDir": "D:/SecurePublish/signer/outgoing",
+    "signerArchiveDir": "D:/SecurePublish/signer/archive",
+    "signerRejectedDir": "D:/SecurePublish/signer/rejected",
+    "publisher": "secure-publish-all-in-one",
+    "signerAuditEnabled": true,
+    "signerAuditUrl": "http://192.168.1.233:8065/content/detection/pre-audit",
+    "signerAuditFailPolicy": "reject",
+    "signerAuditTimeoutMs": 120000,
+    "signerAuditPolicyVersion": "v1",
+    "packageExpireMs": 604800000,
+    "requireAuditPass": true,
+    "signatureProvider": "rsa-db",
+    "signatureKeyId": "spkg-prod-01",
+    "signerPrivateKeyPath": "D:/SecurePublish/keys/spkg-private.pem",
+    "verifierPublicKeyPath": "D:/SecurePublish/keys/spkg-public.pem",
+    "allowedExtensions": ""
+  },
+  "contentReleaseToken": {
+    "enabled": false,
+    "gatewayIssueUrl": "",
+    "tokenTtlMs": 600000,
+    "clientId": "",
+    "policyVersion": "v1"
+  }
+}

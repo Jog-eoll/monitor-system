@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="001" author="system">
+        <comment>创建UKey证书管理表</comment>
+        
+        <createTable tableName="ukey_certificate" remarks="UKey证书管理表">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="cert_serial_no" type="VARCHAR(128)" remarks="证书唯一编号（对应UKey中的cerId/cerSn）">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            
+            <column name="certificate_content" type="TEXT" remarks="证书内容（PEM/DER格式）"/>
+            
+            <column name="valid_from" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="valid_until" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="crypto_algorithm" type="VARCHAR(32)" defaultValue="SM2" remarks="加密算法（SM2/RSA/SM9）">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="bound_client_id" type="VARCHAR(64)" remarks="绑定的监管客户端ID"/>
+            
+            <column name="cert_status" type="VARCHAR(20)" defaultValue="NORMAL" remarks="证书状态：NORMAL=正常, REVOKED=注销, LOST=挂失">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="issuer" type="VARCHAR(255)" remarks="证书颁发机构"/>
+            <column name="subject" type="VARCHAR(255)" remarks="证书主体信息"/>
+            <column name="remark" type="VARCHAR(512)" remarks="备注"/>
+            
+            <column name="online_status" type="VARCHAR(20)" defaultValue="OFFLINE" remarks="在线状态：ONLINE/OFFLINE"/>
+            <column name="last_auth_time" type="DATETIME" remarks="最近一次认证成功时间"/>
+            <column name="last_offline_time" type="DATETIME" remarks="最近一次离线时间"/>
+            
+            <column name="last_heartbeat_time" type="DATETIME" remarks="客户端最近一次心跳上报时间"/>
+            <column name="client_ip" type="VARCHAR(64)" remarks="客户端最近上报的IP地址"/>
+            
+            <column name="display_name" type="VARCHAR(128)" remarks="UKey显示名称"/>
+            <column name="pin_hash" type="VARCHAR(255)" remarks="PIN码的哈希值"/>
+            <column name="pin_salt" type="VARCHAR(64)" remarks="PIN码盐值"/>
+            
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="update_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"/>
+        </createTable>
+        
+        <createIndex tableName="ukey_certificate" indexName="idx_cert_serial_no">
+            <column name="cert_serial_no"/>
+        </createIndex>
+        
+        <createIndex tableName="ukey_certificate" indexName="idx_bound_client_id">
+            <column name="bound_client_id"/>
+        </createIndex>
+        
+        <createIndex tableName="ukey_certificate" indexName="idx_cert_status">
+            <column name="cert_status"/>
+        </createIndex>
+        
+    </changeSet>
+
+</databaseChangeLog>

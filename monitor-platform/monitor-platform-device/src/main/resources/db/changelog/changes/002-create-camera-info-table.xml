@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="002" author="system">
+        <comment>创建摄像机信息表</comment>
+        
+        <createTable tableName="camera_info" remarks="摄像机信息表">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="camera_id" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            
+            <column name="camera_name" type="VARCHAR(100)"/>
+            
+            <column name="location" type="VARCHAR(100)"/>
+            
+            <column name="status" type="VARCHAR(20)" defaultValue="在线"/>
+            
+            <column name="ip_address" type="VARCHAR(50)"/>
+            
+            <column name="manufacturer" type="VARCHAR(100)"/>
+            
+            <column name="model" type="VARCHAR(100)"/>
+            
+            <column name="resolution" type="VARCHAR(20)"/>
+            
+            <column name="cpu_usage" type="DOUBLE"/>
+            
+            <column name="memory_usage" type="DOUBLE"/>
+            
+            <column name="last_online_time" type="DATETIME"/>
+            
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            
+            <column name="update_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            
+            <column name="remark" type="VARCHAR(500)"/>
+        </createTable>
+        
+        <addUniqueConstraint tableName="camera_info" columnNames="camera_id" constraintName="uk_camera_info_camera_id"/>
+        <createIndex tableName="camera_info" indexName="idx_camera_status">
+            <column name="status"/>
+        </createIndex>
+        <createIndex tableName="camera_info" indexName="idx_camera_location">
+            <column name="location"/>
+        </createIndex>
+        <createIndex tableName="camera_info" indexName="idx_camera_create_time">
+            <column name="create_time"/>
+        </createIndex>
+        
+    </changeSet>
+
+</databaseChangeLog>

@@ -1,0 +1,146 @@
+﻿
+server:
+  port: 7080
+
+client:
+  log:
+    encode:
+      enabled: false
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 1000MB
+
+security:
+  gateway-source-validation-enabled: false
+
+process-bind:
+  endpoint-source-validation-enabled: false
+  periodic-integrity-recheck-enabled: false
+
+windivert:
+  enabled: false
+  mode: monitor
+  filter: "udp and outbound and !impostor"
+  dll-path: ""
+  queue-length: 4096
+  fallback-to-udp-table: true
+  shadow:
+    enabled: false
+    packet-filter: "udp and outbound"
+    max-packet-size: 65535
+    event-retention: 500
+    payload-sample-bytes: 0
+    log-unknown-process: true
+    pid-lookup-retry-count: 3
+
+process-policy:
+  enabled: false
+  whitelist:
+    - "Sigma Play.exe"
+  block-unknown-process: false
+
+transparent-proxy:
+  enabled: false
+  filter: "udp and outbound"
+  relay-host: ""
+  relay-port: 18092
+  target-ports:
+    - 9520
+  fail-open: false
+  max-packet-size: 65535
+  pid-lookup-retry-count: 5
+  sign-packet: false
+  signature-secret: ""
+  require-ukey-authentication: false
+
+relay-file-signature:
+  enabled: false
+  mode: audit
+  shadow-assemble-enabled: false
+  report-enabled: false
+  gateway-url: ""
+  gateway-http-port: 8092
+  metadata-path: "/security/relay/file-signature/client-record"
+  max-file-size-mb: 200
+  signature-algorithm: "SM2-SIGN"
+  hash-algorithm: "SHA-256"
+
+content-pre-audit:
+  enabled: false
+  mode: audit
+  audit-url: "http://192.168.1.28:8080"
+  fail-policy: reject
+  token-required: false
+  ack-simulation-enabled: false
+  ack-learning-enabled: false
+  max-image-size-mb: 50
+  max-video-size-mb: 500
+  max-buffered-packets-per-item: 200000
+
+secure-publish:
+  enabled: false
+  incoming-dir: "D:/SecurePublish/incoming"
+  verified-dir: "D:/SecurePublish/verified"
+  runtime-dir: "D:/SecurePublish/runtime"
+  rejected-dir: "D:/SecurePublish/rejected"
+  temp-dir: "D:/SecurePublish/temp"
+  max-package-size-mb: 500
+  test-package-enabled: false
+  signer-enabled: false
+  signer-input-dir: "D:/SecurePublish/signer/incoming"
+  signer-output-dir: "D:/SecurePublish/signer/outgoing"
+  signer-archive-dir: "D:/SecurePublish/signer/archive"
+  signer-rejected-dir: "D:/SecurePublish/signer/rejected"
+  publisher: "secure-publish-signer"
+  signer-audit-enabled: true
+  signer-audit-url: "http://192.168.1.233:8065/content/detection/pre-audit"
+  signer-audit-fail-policy: reject
+  signer-audit-policy-version: "v1"
+  require-audit-pass: true
+  signature-provider: rsa
+  signature-key-id: "default"
+  signer-private-key-path: "D:/SecurePublish/keys/spkg-private.pem"
+  verifier-public-key-path: "D:/SecurePublish/keys/spkg-public.pem"
+  allowed-extensions: ""
+  # ── Sigma v1 安全发布 JWT publishPermit 签发配置 ──
+  permit:
+    issuer: "info-publish-client"
+    client-id: "sigma-client-01"
+    hmac-secret: ${SIGMA_PERMIT_HMAC_SECRET:ChangeMe_Sigma_Permit_Secret_32Bytes!}
+
+content-release-token:
+  enabled: false
+  gateway-issue-url: ""
+  client-id: ""
+  policy-version: "v1"
+
+provider:
+  jmdns:
+    enabled: ${PROVIDER_JMDNS_ENABLED:true}
+    bind-address: ${PROVIDER_JMDNS_BIND_ADDRESS:}
+    advertise-host: ${PROVIDER_JMDNS_ADVERTISE_HOST:}
+
+# ========== 发布前预检查（Sigma 对接） ==========
+precheck:
+  enabled: true
+
+# ========== 控制指令（Sigma 对接） ==========
+control-command:
+  gateway-url: ${CONTROL_COMMAND_GATEWAY_URL:http://192.168.113.10:8092}
+
+content-publish:
+  gateway-url: ${CONTENT_PUBLISH_GATEWAY_URL:${control-command.gateway-url:http://192.168.113.10:8092}}
+  download-timeout-ms: ${CONTENT_PUBLISH_DOWNLOAD_TIMEOUT_MS:30000}
+  max-file-size-mb: ${CONTENT_PUBLISH_MAX_FILE_SIZE_MB:50}
+
+info-board:
+  status:
+    source: ${INFO_BOARD_STATUS_SOURCE:auto}
+    platform-url: "${INFO_BOARD_STATUS_PLATFORM_URL:${monitor-platform.url:}}"
+    gateway-url: "${INFO_BOARD_STATUS_GATEWAY_URL:http://192.168.113.11:8093}"
+    default-port: ${INFO_BOARD_STATUS_DEFAULT_PORT:9520}
+    probe-enabled: ${INFO_BOARD_STATUS_PROBE_ENABLED:true}
+    fallback-direct-probe-enabled: ${INFO_BOARD_STATUS_FALLBACK_DIRECT_PROBE_ENABLED:true}

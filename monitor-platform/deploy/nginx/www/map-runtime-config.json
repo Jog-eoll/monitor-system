@@ -1,0 +1,13 @@
+{
+  "tileUrl": "http://192.168.1.31:8088/anyang/tiles/{z}/{x}/{y}.png",
+  "roadOverlayTileUrl": "http://192.168.1.31:8088/anyang/road/{z}/{x}/{y}.png",
+  "roadOverlayOpacity": 0.88,
+  "useBuiltinLayers": false,
+  "useBuiltinRoadOverlay": false,
+  "center": [114.39291000366212, 36.097938036628065],
+  "zoom": 10,
+  "minZoom": 12,
+  "maxZoom": 17,
+  
+  "mapStyle": "amap://styles/darkblue"
+}

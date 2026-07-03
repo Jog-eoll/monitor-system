@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="002" author="system">
+        <comment>创建检测规则表</comment>
+        
+        <createTable tableName="detection_rule" remarks="检测规则表">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="rule_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="rule_type" type="VARCHAR(50)" remarks="规则类型: keyword/format/content">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="rule_config" type="TEXT" remarks="规则配置(JSON格式)"/>
+            <column name="priority" type="INT" defaultValue="0" remarks="优先级(数字越大优先级越高)"/>
+            
+            <column name="status" type="VARCHAR(20)" defaultValue="enabled" remarks="状态: enabled/disabled"/>
+            <column name="description" type="VARCHAR(500)"/>
+            
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="update_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"/>
+        </createTable>
+        
+        <createIndex tableName="detection_rule" indexName="idx_rule_type">
+            <column name="rule_type"/>
+        </createIndex>
+        
+        <createIndex tableName="detection_rule" indexName="idx_status">
+            <column name="status"/>
+        </createIndex>
+        
+        <createIndex tableName="detection_rule" indexName="idx_priority">
+            <column name="priority"/>
+        </createIndex>
+        
+    </changeSet>
+
+</databaseChangeLog>

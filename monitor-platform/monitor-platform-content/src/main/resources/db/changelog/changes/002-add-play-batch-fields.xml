@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="content-002-add-play-batch-fields" author="system">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="t_content_monitor" columnName="play_batch_id"/>
+            </not>
+        </preConditions>
+        <sql dbms="mysql" splitStatements="true" stripComments="true"><![CDATA[
+ALTER TABLE `t_content_monitor`
+  MODIFY COLUMN `content_id` varchar(128) NOT NULL COMMENT 'content id',
+  ADD COLUMN `play_batch_id` varchar(128) DEFAULT NULL COMMENT 'play batch id' AFTER `board_port`,
+  ADD COLUMN `play_batch_seq` int(11) DEFAULT NULL COMMENT 'play batch sequence' AFTER `play_batch_id`,
+  ADD COLUMN `play_batch_size` int(11) DEFAULT NULL COMMENT 'play batch size' AFTER `play_batch_seq`,
+  ADD KEY `idx_play_batch` (`play_batch_id`,`play_batch_seq`);
+        ]]></sql>
+    </changeSet>
+
+</databaseChangeLog>

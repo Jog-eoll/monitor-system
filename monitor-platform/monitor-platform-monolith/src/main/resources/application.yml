@@ -1,0 +1,175 @@
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: monitor-platform-monolith
+  profiles:
+    active: dev
+
+  # 数据源配置
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:192.168.1.31}:${MYSQL_PORT:3306}/${MYSQL_DB:monitor_platform}?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:root123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+  # Liquibase 数据库版本管理
+  liquibase:
+    change-log: classpath:/db/changelog/db.changelog-master.xml
+    enabled: true
+
+  # Redis 配置
+  redis:
+    host: ${REDIS_HOST:192.168.1.31}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:123456}
+    database: ${REDIS_DB:0}
+    timeout: 10000
+    lettuce:
+      pool:
+        max-active: 16
+        max-idle: 8
+        min-idle: 2
+        max-wait: 3000
+
+  # Jackson 配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+
+  # MVC 配置
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+
+  # Servlet 文件上传
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+# MyBatis Plus 配置
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  type-aliases-package: com.monitorplatform.*.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# Knife4j Swagger 配置
+knife4j:
+  enable: true
+  setting:
+    language: zh-CN
+
+# Minio 配置
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://192.168.1.31:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket-name: ${MINIO_BUCKET:monitor-platform}
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.monitorplatform: DEBUG
+    com.baomidou.mybatisplus: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Actuator 端点
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# 告警配置
+alarm:
+  auto-black-screen:
+    enabled: ${ALARM_AUTO_BLACK_SCREEN_ENABLED:true}
+
+# UKey 管理配置
+ukey:
+  admin:
+    username: ${UKEY_ADMIN_USERNAME:}
+    password: ${UKEY_ADMIN_PASSWORD:}
+  password:
+    encrypt-key: ${UKEY_PASSWORD_ENCRYPT_KEY:l3/ltPCoAM32zj/sizEHG5m+oAfsgfOQjtNZnUYe5TE=}
+
+# JWT config
+jwt:
+  secret: ${JWT_SECRET:monitor-platform-jwt-secret-key-2026}
+  expire-hours: ${JWT_EXPIRE_HOURS:8}
+
+# VAuth server SDK config
+vauth:
+  server:
+    mode: ${VAUTH_SERVER_MODE:ukey}
+    password: ${VAUTH_SERVER_PASSWORD:123456}
+    auth-id: ${VAUTH_SERVER_AUTH_ID:}
+    ukey-path: ${VAUTH_SERVER_UKEY_PATH:}
+    ukey-sn: ${VAUTH_SERVER_UKEY_SN:}
+    ukey-cer-sn: ${VAUTH_SERVER_UKEY_CER_SN:}
+    ukey-cer-id: ${VAUTH_SERVER_UKEY_CER_ID:}
+    required: ${VAUTH_SERVER_REQUIRED:true}
+    library-path: ${VAUTH_SERVER_LIBRARY_PATH:D:/xwechat_files/wxid_8afqaeggz5x112_21df/msg/file/2026-06/vauth认证加解密SDK_20260422/win64/lib}
+    dependency-paths: ${VAUTH_SERVER_DEPENDENCY_PATHS:D:/xwechat_files/wxid_8afqaeggz5x112_21df/msg/file/2026-06/vauth认证加解密SDK_20260422/win64/lib/WTG1}
+    session-key-cache-ttl-hours: ${VAUTH_SESSION_KEY_CACHE_TTL_HOURS:72}
+
+# WebSocket 配置
+monitor:
+  device:
+    url: ${MONITOR_DEVICE_URL:http://127.0.0.1:8080}
+  forward:
+    url: ${MONITOR_FORWARD_URL:http://127.0.0.1:8080}
+  content:
+    url: ${MONITOR_CONTENT_URL:http://127.0.0.1:8080}
+  websocket:
+    enabled: true
+
+# MQTT 下发配置（默认 HTTP 模式，不影响现有行为）
+forward:
+  dispatch:
+    mode: ${DISPATCH_MODE:http}
+    mqtt-broker-url: ${MQTT_BROKER_URL:ssl://127.0.0.1:8883}
+    mqtt-username: ${MQTT_USERNAME:}
+    mqtt-password: ${MQTT_PASSWORD:}
+    tenant-id: ${MQTT_TENANT_ID:default}
+    site-id: ${MQTT_SITE_ID:site-001}
+    platform-client-id: ${MQTT_PLATFORM_CLIENT_ID:monitor-platform-monolith-001}
+    keep-alive-sec: 30
+    command-timeout-sec: ${MQTT_COMMAND_TIMEOUT_SEC:60}
+    reconnect-interval-ms: ${MQTT_RECONNECT_INTERVAL_MS:30000}
+    heartbeat-interval-sec: 30
+    qos: 1
+    auth-enabled: ${MQTT_AUTH_ENABLED:true}
+    device-default-password: ${MQTT_DEVICE_DEFAULT_PASSWORD:}
+    allow-empty-device-password: ${MQTT_ALLOW_EMPTY_DEVICE_PASSWORD:true}
+    platform-client-prefix: ${MQTT_PLATFORM_CLIENT_PREFIX:monitor-platform,platform,server}
+  gateway:
+    default-url: ${FORWARD_GATEWAY_DEFAULT_URL:http://192.168.1.25:8092}
+  client:
+    default-port: ${FORWARD_CLIENT_DEFAULT_PORT:7081}
+
+ip-change:
+  callback:
+    enabled: true

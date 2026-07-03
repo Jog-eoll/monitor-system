@@ -1,0 +1,1 @@
+import{b$ as a,c0 as r,a6 as e,ab as o,l as s}from"./index-CsvikWj3.js";const t={prefix:Math.floor(1e4*Math.random()),current:0},n=Symbol("elIdInjection"),c=()=>o()?e(n,t):t,i=e=>{const o=c(),t=a();return r(()=>s(e)||`${t.value}-id-${o.prefix}-${o.current++}`)};export{c as a,i as u};

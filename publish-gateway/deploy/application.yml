@@ -1,0 +1,201 @@
+server:
+  port: 8092
+  
+spring:
+  application:
+    name: gateway-udp-proxy
+  
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/udp_proxy_gateway?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  
+  # Jackson配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+
+  # Redis 缓存配置
+  redis:
+    host: ${REDIS_HOST:127.0.0.1}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    database: ${REDIS_DATABASE:2}
+
+# MyBatis Plus配置
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# 管控平台配置
+monitor:
+  platform:
+    content-url: http://${MONITOR_HOST:127.0.0.1}:${MONITOR_CONTENT_PORT:8065}
+
+# MinIO 对象存储配置
+minio:
+  enabled: true
+  endpoint: http://${MINIO_HOST:127.0.0.1}:${MINIO_PORT:9000}
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
+  bucket-name: ${MINIO_BUCKET:monitor-content}
+  fallback-to-base64: true
+
+# VAuth 国密加解密配置
+vauth:
+  # mock-mode=true:  使用 SimpleCryptoServiceImpl（AES模拟，无需硬件，仅用于开发调试）
+  # mock-mode=false: 使用 VAuthCryptoServiceImpl（SM4国密，需SDF密码卡或UKey）《生产必须设为false》
+  mock-mode: ${VAUTH_MOCK_MODE:false}
+  # 设备类型：sdf（SDF密码卡）或 ukey（USB UKey）
+  device-type: ${VAUTH_DEVICE_TYPE:ukey}
+  # 设备密码（SDF PIN 或 UKey PIN），必须通过环境变量注入，禁止硬编码
+  password: "${VAUTH_PASSWORD}"
+  # 本端认证ID（发布网关在认证体系中的唯一标识）
+  auth-id: "${VAUTH_AUTH_ID:44030000003330000305}"
+  # 同机双 UKey 部署时必须显式绑定发布网关 UKey，优先配置 sn，cerSn/cerId 用于二次校验
+  ukey-path: "${VAUTH_UKEY_PATH:}"
+  ukey-sn: "${VAUTH_UKEY_SN:}"
+  ukey-cer-sn: "${VAUTH_UKEY_CER_SN:}"
+  ukey-cer-id: "${VAUTH_UKEY_CER_ID:}"
+  # 认证服务端 ID（管控平台的认证标识）
+  server-id: "${VAUTH_SERVER_ID:44010100003330003024}"
+  # 管控平台签名证书路径
+  server-cert-path: "certs/${VAUTH_SERVER_ID:44010100003330003024}_SIGN.cer"
+  # 本端 UKey 签名证书路径
+  client-cert-path: "certs/${VAUTH_AUTH_ID:44030000003330000305}_SIGN.cer"
+  # 管控平台地址（用于双向认证握手）
+  control-platform-url: "http://${MONITOR_HOST:127.0.0.1}:${MONITOR_UKEY_PORT:8063}"
+  # 加密时是否附带SM2签名
+  sign-enabled: true
+  # SVAC2 编码加密模式开关
+  # true  = 使用 VAuth_EncryptPackData（SVAC2 编码+加密，仅 Linux 可用）
+  # false = 使用 VAuth_EncryptData（国密整包加密，默认）
+  svac-mode: ${VAUTH_SVAC_MODE:false}
+
+# Sigma Play 安全包验签配置
+secure-publish:
+  enabled: ${SECURE_PUBLISH_ENABLED:false}
+  trust-store-dir: ${SECURE_PUBLISH_TRUST_STORE_DIR:/opt/publish-gateway/trust}
+  trusted-key-ids: ${SECURE_PUBLISH_TRUSTED_KEY_IDS:}
+  default-key-id: ${SECURE_PUBLISH_DEFAULT_KEY_ID:default}
+  verifier-public-key-path: ${SECURE_PUBLISH_VERIFIER_PUBLIC_KEY_PATH:}
+  require-audit-pass: ${SECURE_PUBLISH_REQUIRE_AUDIT_PASS:true}
+  require-content-allow: ${SECURE_PUBLISH_REQUIRE_CONTENT_ALLOW:true}
+  require-not-expired: ${SECURE_PUBLISH_REQUIRE_NOT_EXPIRED:true}
+  max-package-size-mb: ${SECURE_PUBLISH_MAX_PACKAGE_SIZE_MB:500}
+  package-extensions: ${SECURE_PUBLISH_PACKAGE_EXTENSIONS:tar,spkg,zip}
+  assembly-timeout-ms: ${SECURE_PUBLISH_ASSEMBLY_TIMEOUT_MS:120000}
+  stale-gap-ms: ${SECURE_PUBLISH_STALE_GAP_MS:30000}
+  rejected-dir: ${SECURE_PUBLISH_REJECTED_DIR:/opt/publish-gateway/secure-publish/rejected}
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.publishgateway.udpproxy: INFO
+  pattern:
+    # %d{yyyy-MM-dd HH:mm:ss.SSS, Asia/Shanghai} 指定时区
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS, Asia/Shanghai} [%thread] %-5level %logger{50} - %msg%n"
+
+
+gateway:
+  transcode:
+    enabled: false            # false=透传模式，true=转码模式
+
+client-relay:
+  enabled: ${CLIENT_RELAY_ENABLED:true}
+  relay-port: ${CLIENT_RELAY_PORT:18092}
+  trusted-client-ips: ${CLIENT_RELAY_TRUSTED_IPS:}
+  verify-signature: ${CLIENT_RELAY_VERIFY_SIGNATURE:false}
+  signature-secret: ${CLIENT_RELAY_SIGNATURE_SECRET:}
+  reject-direct-udp: ${CLIENT_RELAY_REJECT_DIRECT_UDP:false}
+
+relay-file-signature:
+  enabled: ${RELAY_FILE_SIGNATURE_ENABLED:false}
+  mode: ${RELAY_FILE_SIGNATURE_MODE:audit}
+  verify-on-complete-only: true
+  fail-open-on-sign-error: true
+  cache-ttl-ms: ${RELAY_FILE_SIGNATURE_CACHE_TTL_MS:600000}
+  max-file-size-mb: ${RELAY_FILE_SIGNATURE_MAX_FILE_SIZE_MB:200}
+  prefer-client-signature: ${RELAY_FILE_SIGNATURE_PREFER_CLIENT:true}
+  require-client-signature: ${RELAY_FILE_SIGNATURE_REQUIRE_CLIENT:false}
+
+content-release-token:
+  enabled: ${CONTENT_RELEASE_TOKEN_ENABLED:false}
+  require-token: ${CONTENT_RELEASE_TOKEN_REQUIRE_TOKEN:false}
+  token-ttl-ms: ${CONTENT_RELEASE_TOKEN_TTL_MS:600000}
+  cache-ttl-ms: ${CONTENT_RELEASE_TOKEN_CACHE_TTL_MS:600000}
+  max-file-size-mb: ${CONTENT_RELEASE_TOKEN_MAX_FILE_SIZE_MB:500}
+  issuer: ${CONTENT_RELEASE_TOKEN_ISSUER:publish-gateway}
+  policy-version: ${CONTENT_RELEASE_TOKEN_POLICY_VERSION:v1}
+
+# 来源合法性校验配置
+# 发布网关收到 UDP 包后，同步调用 info-publish-client 进行来源 IP:Port 校验
+security:
+  # info-publish-client 的 Spring Boot 端口，与客户端 application.yml 中 server.port 一致
+  # 客户端 IP 直接从链路规则的 sourceIp 字段获取，无需额外配置
+  client-port: ${CLIENT_PORT:7081}
+  # 同步 HTTP 校验超时（毫秒），建议 2000ms 以内，超时后降级放行
+  client-validate-timeout-ms: ${CLIENT_VALIDATE_TIMEOUT_MS:2000}
+  per-packet-client-validation-enabled: ${PER_PACKET_CLIENT_VALIDATION_ENABLED:true}
+  # 是否启用来源校验，false 时跳过（仅用于调试环境，生产必须设为 true）
+
+
+traffic-reconcile:
+  enabled: ${TRAFFIC_RECONCILE_ENABLED:false}
+  window-ms: ${TRAFFIC_RECONCILE_WINDOW_MS:10000}
+  delay-ms: ${TRAFFIC_RECONCILE_DELAY_MS:2000}
+  reconcile-interval-ms: ${TRAFFIC_RECONCILE_INTERVAL_MS:10000}
+  alert-cooldown-ms: ${TRAFFIC_RECONCILE_ALERT_COOLDOWN_MS:30000}
+  tolerance-bytes: ${TRAFFIC_RECONCILE_TOLERANCE_BYTES:512}
+  retention-ms: ${TRAFFIC_RECONCILE_RETENTION_MS:120000}
+  max-endpoints: ${TRAFFIC_RECONCILE_MAX_ENDPOINTS:10000}
+
+registry:
+  client:
+    preferredNetwork: "192.168.1."
+    enabled: true
+    server-addr: ${MONITOR_HOST:192.168.1.233}:${MONITOR_DEVICE_PORT:8062}
+    client-id: "${REGISTRY_CLIENT_ID:${VAUTH_AUTH_ID:}}"
+    service-name: gateway-udp-proxy
+    device-type: publish_gateway
+    location: ${DEVICE_LOCATION:}
+    version: ${DEVICE_VERSION:}
+    manufacturer: ${DEVICE_MANUFACTURER:}
+    model: ${DEVICE_MODEL:}
+    remark: ${DEVICE_REMARK:}
+
+provider:
+  jmdns:
+    enabled: ${PROVIDER_JMDNS_ENABLED:true}
+    bind-address: ${PROVIDER_JMDNS_BIND_ADDRESS:192.168.1.25}
+    advertise-host: ${PROVIDER_JMDNS_ADVERTISE_HOST:192.168.1.25}
+
+mqtt-agent:
+  enabled: ${MQTT_AGENT_ENABLED:false}
+  broker-url: ${MQTT_BROKER_URL:ssl://mqtt.example.com:8883}
+  username: ${MQTT_USERNAME:}
+  password: ${MQTT_PASSWORD:}
+  client-id: ${MQTT_CLIENT_ID:publish-gateway-001}
+  tenant-id: ${MQTT_TENANT_ID:default}
+  site-id: ${MQTT_SITE_ID:site-001}
+  device-id: ${REGISTRY_CLIENT_ID:${VAUTH_AUTH_ID:publish-gateway-001}}
+  device-type: publish_gateway
+  keep-alive-sec: 30
+  heartbeat-interval-sec: 30
+  reconnect-interval-ms: ${MQTT_RECONNECT_INTERVAL_MS:30000}
+  command-dedup-ttl-ms: ${MQTT_COMMAND_DEDUP_TTL_MS:86400000}
+  dedup-cleanup-interval-ms: ${MQTT_DEDUP_CLEANUP_INTERVAL_MS:600000}
+  qos: 1
+  clean-session: true
+  auto-reconnect: true
+  truststore-path: ${MQTT_TRUSTSTORE_PATH:}
+  truststore-password: ${MQTT_TRUSTSTORE_PASSWORD:}
+  registration-enabled: ${MQTT_REGISTER

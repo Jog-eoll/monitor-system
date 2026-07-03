@@ -1,0 +1,60 @@
+version: "3.8"
+
+services:
+  monitor-platform-monolith:
+    image: monitor-platform-monolith:1.0.0
+    container_name: monitor-platform-monolith
+    network_mode: host
+    privileged: true
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
+      - LD_LIBRARY_PATH=/opt/monitor-platform-monolith/lib
+      - SERVER_PORT=${SERVER_PORT:-8080}
+      - MYSQL_HOST=${MYSQL_HOST:-127.0.0.1}
+      - MYSQL_PORT=${MYSQL_PORT:-3306}
+      - MYSQL_DB=${MYSQL_DB:-monitor_platform}
+      - MYSQL_USERNAME=${MYSQL_USERNAME:-root}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST:-127.0.0.1}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DB=${REDIS_DB:-0}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-http://127.0.0.1:9000}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET:-monitor-platform}
+      - VAUTH_SERVER_MODE=${VAUTH_SERVER_MODE:-ukey}
+      - VAUTH_SERVER_REQUIRED=${VAUTH_SERVER_REQUIRED:-true}
+      - VAUTH_SERVER_PASSWORD=${VAUTH_SERVER_PASSWORD}
+      - VAUTH_SERVER_AUTH_ID=${VAUTH_SERVER_AUTH_ID}
+      - VAUTH_SERVER_UKEY_PATH=${VAUTH_SERVER_UKEY_PATH:-}
+      - VAUTH_SERVER_UKEY_SN=${VAUTH_SERVER_UKEY_SN:-}
+      - VAUTH_SERVER_UKEY_CER_SN=${VAUTH_SERVER_UKEY_CER_SN:-}
+      - VAUTH_SERVER_UKEY_CER_ID=${VAUTH_SERVER_UKEY_CER_ID:-}
+      - VAUTH_SERVER_LIBRARY_PATH=${VAUTH_SERVER_LIBRARY_PATH:-/opt/monitor-platform-monolith/lib}
+      - VAUTH_SERVER_DEPENDENCY_PATHS=${VAUTH_SERVER_DEPENDENCY_PATHS:-/opt/monitor-platform-monolith/lib}
+      - UKEY_ADMIN_USERNAME=${UKEY_ADMIN_USERNAME:-admin}
+      - UKEY_ADMIN_PASSWORD=${UKEY_ADMIN_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRE_HOURS=${JWT_EXPIRE_HOURS:-8}
+      - JAVA_OPTS=${JAVA_OPTS:--Xms512m -Xmx1024m}
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./lib:/opt/monitor-platform-monolith/lib:ro
+      - /dev/bus/usb:/dev/bus/usb
+      - /run/udev:/run/udev:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:${SERVER_PORT:-8080}/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"

@@ -1,0 +1,95 @@
+server:
+  port: 8093
+
+spring:
+  application:
+    name: terminal-udp-gateway
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/terminal_gateway?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# VAuth 国密加解密配置
+vauth:
+  # mock-mode=false: 使用真实国密（生产必须设为 false）
+  mock-mode: ${VAUTH_MOCK_MODE:false}
+  # 本端认证 ID（终端网关的证书序列号）
+  auth-id: "${VAUTH_AUTH_ID:44030000003330000310}"
+  # UKey 设备 PIN 码，禁止硬编码
+  password: "${VAUTH_PASSWORD}"
+  # 服务端认证 ID（管控平台的证书序列号）
+  server-id: "${VAUTH_SERVER_ID:44010100003330003024}"
+  # 管控平台签名证书路径
+  server-cert-path: "/app/certs/${VAUTH_SERVER_ID:44010100003330003024}_SIGN.cer"
+  # 本端 UKey 签名证书路径
+  client-cert-path: "/app/certs/${VAUTH_AUTH_ID:44030000003330000310}_SIGN.cer"
+  # 管控平台地址（用于双向认证握手）
+  control-platform-url: "http://${MONITOR_HOST:192.168.1.233}:${MONITOR_UKEY_PORT:8080}"
+  sign-enabled: true
+  # SVAC2 编码加密模式开关
+  # true  = 使用 VAuth_EncryptPackData/DecryptPackData（SVAC2 编码格式，仅 Linux 可用）
+  # false = 使用 VAuth_EncryptData/DecryptData（国密整包加密，默认）
+  svac-mode: ${VAUTH_SVAC_MODE:false}
+
+probe:
+  report-url: "http://${MONITOR_HOST:192.168.1.233}:${MONITOR_DEVICE_PORT:8080}/device/unified/batch-status"
+  interval-seconds: 30
+  timeout-ms: 3000
+
+logging:
+  level:
+    com.terminalgateway.udpproxy: INFO
+    org.mybatis: WARN
+    org.apache.ibatis: WARN
+    com.baomidou.mybatisplus: WARN
+  pattern:
+    # 指定日志时区为东八区
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS, Asia/Shanghai} [%thread] %-5level %logger{50} - %msg%n"
+
+# 设备自动注册配置
+registry:
+  client:
+    preferredNetwork: "192.168.1."
+    enabled: true
+    server-addr: ${MONITOR_HOST:192.168.1.233}:${MONITOR_DEVICE_PORT:8080}
+    service-name: terminal-udp-gateway
+    device-type: terminal_encrypt_gateway
+    # host/mac-address 未配置时自动探测宿主机 site-local 网卡
+    #host: 192.168.1.x
+    #mac-address: XX-XX-XX-XX-XX-XX
+    location: ${DEVICE_LOCATION:}
+    version: ${DEVICE_VERSION:}
+    manufacturer: ${DEVICE_MANUFACTURER:}
+    model: ${DEVICE_MODEL:}
+    remark: ${DEVICE_REMARK:}
+
+provider:
+  jmdns:
+    enabled: ${PROVIDER_JMDNS_ENABLED:true}
+    bind-address: ${PROVIDER_JMDNS_BIND_ADDRESS:}
+    advertise-host: ${PROVIDER_JMDNS_ADVERTISE_HOST:}
+
+snapshot:
+  enabled: ${SNAPSHOT_ENABLED:false}
+  interval-seconds: ${SNAPSHOT_INTERVAL_SECONDS:10}
+  timeout-ms: ${SNAPSHOT_TIMEOUT_MS:5000}
+  tmp-dir: ${SNAPSHOT_TMP_DIR:${java.io.tmpdir}/terminal-gateway-snapshots}
+  report-url: ${SNAPSHOT_REPORT_URL:http://${MONITOR_HOST:192.168.1.233}:${MONITOR_CONTENT_PORT:8080}/content/receive}
+  report-retry-once: ${SNAPSHOT_REPORT_RETRY_ONCE:true}
+  minio:
+    bucket-name: ${SNAPSHOT_MINIO_BUCKET:monitor-platform}
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
+  accessKey: ${MINIO_ACCESS_KEY:}
+  secretKey: ${MINIO_SECRET_KEY:}

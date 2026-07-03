@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: monitor-platform-registry-server
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  liquibase:
+    change-log: classpath:/db/changelog/db.changelog-master.xml
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_IP_PORT:nacos:8848}
+        namespace: ${NACOS_NAMESPACE:5c87647a-8a17-4adb-94ce-04047ea26d96}
+      config:
+        server-addr: ${NACOS_IP_PORT:nacos:8848}
+        namespace: ${NACOS_NAMESPACE:5c87647a-8a17-4adb-94ce-04047ea26d96}
+        file-extension: yml
+        enabled: true
+        refresh-enabled: true
+        shared-configs:
+          - data-id: application-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+            group: DEFAULT_GROUP
+            refresh: true
+        extension-configs:
+          - data-id: ${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+            group: DEFAULT_GROUP
+            refresh: true

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        logicalFilePath="monitor-platform-log/db.changelog-master.xml"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="log-001-create-diagnostic-event-log" author="system">
+        <sql dbms="mysql" splitStatements="true" stripComments="true"><![CDATA[
+CREATE TABLE IF NOT EXISTS `diagnostic_event_log` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'primary key',
+  `event_id` varchar(64) NOT NULL COMMENT 'event unique id',
+  `trace_id` varchar(128) DEFAULT NULL COMMENT 'publish trace id',
+  `event_time` datetime NOT NULL COMMENT 'event time',
+  `event_type` varchar(64) NOT NULL COMMENT 'event type',
+  `event_level` varchar(20) NOT NULL DEFAULT 'info' COMMENT 'info/warn/error',
+  `stage` varchar(64) DEFAULT NULL COMMENT 'client/publish_gateway/terminal_gateway/content/alarm/operation',
+  `service_name` varchar(100) DEFAULT NULL COMMENT 'source service',
+  `chain_id` bigint(20) DEFAULT NULL COMMENT 'chain id',
+  `chain_code` varchar(100) DEFAULT NULL COMMENT 'chain code',
+  `content_id` varchar(128) DEFAULT NULL COMMENT 'content id',
+  `source_ip` varchar(50) DEFAULT NULL COMMENT 'publish client ip',
+  `source_port` int(11) DEFAULT NULL COMMENT 'publish client port',
+  `board_ip` varchar(50) DEFAULT NULL COMMENT 'board ip',
+  `board_port` int(11) DEFAULT NULL COMMENT 'board port',
+  `operator_id` varchar(64) DEFAULT NULL COMMENT 'operator id',
+  `operator_name` varchar(100) DEFAULT NULL COMMENT 'operator name',
+  `client_ip` varchar(50) DEFAULT NULL COMMENT 'operator client ip',
+  `ukey_id` varchar(128) DEFAULT NULL COMMENT 'ukey id',
+  `cert_serial_no` varchar(128) DEFAULT NULL COMMENT 'certificate serial no',
+  `cert_name` varchar(200) DEFAULT NULL COMMENT 'certificate name',
+  `sign_status` varchar(20) DEFAULT NULL COMMENT 'sign status',
+  `verify_status` varchar(20) DEFAULT NULL COMMENT 'verify status',
+  `result_status` varchar(20) DEFAULT NULL COMMENT 'success/fail',
+  `summary` varchar(500) DEFAULT NULL COMMENT 'diagnostic summary',
+  `error_code` varchar(100) DEFAULT NULL COMMENT 'error code',
+  `error_message` varchar(1000) DEFAULT NULL COMMENT 'error message',
+  `ref_table` varchar(100) DEFAULT NULL COMMENT 'reference table',
+  `ref_id` varchar(128) DEFAULT NULL COMMENT 'reference id',
+  `detail_json` text COMMENT 'detail json',
+  `dedup_key` varchar(255) DEFAULT NULL COMMENT 'dedup key',
+  `repeat_count` int(11) NOT NULL DEFAULT '1' COMMENT 'repeat count',
+  `last_repeat_time` datetime DEFAULT NULL COMMENT 'last repeat time',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'create time',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'update time',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_event_id` (`event_id`),
+  KEY `idx_event_time` (`event_time`),
+  KEY `idx_trace_id` (`trace_id`),
+  KEY `idx_chain_time` (`chain_id`,`event_time`),
+  KEY `idx_content_id` (`content_id`),
+  KEY `idx_source_time` (`source_ip`,`event_time`),
+  KEY `idx_board_time` (`board_ip`,`event_time`),
+  KEY `idx_operator_time` (`operator_id`,`operator_name`,`event_time`),
+  KEY `idx_event_type_time` (`event_type`,`event_time`),
+  KEY `idx_cert_serial_no` (`cert_serial_no`),
+  KEY `idx_dedup_key` (`dedup_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='diagnostic event log';
+        ]]></sql>
+    </changeSet>
+
+</databaseChangeLog>

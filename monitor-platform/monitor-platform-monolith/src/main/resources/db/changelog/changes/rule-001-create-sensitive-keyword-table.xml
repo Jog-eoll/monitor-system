@@ -1,0 +1,50 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="001" author="system">
+        
+<preConditions onFail="MARK_RAN" onError="HALT">
+            <not>
+                <tableExists tableName="sensitive_keyword"/>
+            </not>
+        </preConditions>
+
+<comment>创建敏感关键词表</comment><createTable tableName="sensitive_keyword" remarks="敏感关键词表">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="keyword" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="category" type="VARCHAR(50)" remarks="分类: 违禁词/敏感词/自定义"/>
+            
+            <column name="severity" type="VARCHAR(20)" defaultValue="medium" remarks="严重程度: high/medium/low"/>
+            
+            <column name="status" type="VARCHAR(20)" defaultValue="enabled" remarks="状态: enabled/disabled"/>
+            
+            <column name="remark" type="VARCHAR(255)"/>
+            
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="update_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"/>
+        </createTable>
+        
+        <createIndex tableName="sensitive_keyword" indexName="idx_keyword">
+            <column name="keyword"/>
+        </createIndex>
+        
+        <createIndex tableName="sensitive_keyword" indexName="idx_category">
+            <column name="category"/>
+        </createIndex>
+        
+        <createIndex tableName="sensitive_keyword" indexName="idx_status">
+            <column name="status"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

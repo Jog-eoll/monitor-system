@@ -1,0 +1,97 @@
+# Stage 2 single-node microservice deployment config.
+# Copy to ../deploy.conf and replace all passwords before running:
+#   bash install.sh --check
+
+MIN_CPU_CORES=4
+MIN_MEMORY_MB=8192
+MIN_DISK_GB=50
+
+# Container-internal dependency addresses. Do not change for stage2 single-node.
+MYSQL_HOST=db
+MYSQL_PORT=3306
+MYSQL_DB=monitor_platform
+MYSQL_USER=monitor_app
+MYSQL_PASSWORD=Replace_Mysql_App_2026!
+MYSQL_ROOT_PASSWORD=Replace_Mysql_Root_2026!
+
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=Replace_Redis_2026!
+
+NACOS_HOST=nacos
+NACOS_PORT=8848
+NACOS_NAMESPACE=5c87647a-8a17-4adb-94ce-04047ea26d96
+
+MINIO_ENDPOINT=http://minio:9000
+MINIO_ROOT_USER=monitor_minio_root
+MINIO_ROOT_PASSWORD=Replace_Minio_Root_2026!
+MINIO_ACCESS_KEY=monitor_minio_app
+MINIO_SECRET_KEY=Replace_Minio_App_2026!
+MINIO_BUCKET=monitor-platform
+
+SENTINEL_HOST=127.0.0.1
+SENTINEL_PORT=8858
+
+# MQTT downlink. Keep http until EMQX and gateway agents are ready.
+DISPATCH_MODE=http
+MQTT_BROKER_URL=ssl://127.0.0.1:8883
+MQTT_USERNAME=
+MQTT_PASSWORD=
+MQTT_TENANT_ID=default
+MQTT_SITE_ID=site-001
+MQTT_PLATFORM_CLIENT_ID=monitor-platform-001
+MQTT_RECONNECT_INTERVAL_MS=30000
+
+# Remote upgrade package download base URL.
+# Devices in private LAN must be able to access this public platform root URL.
+# Example: http://120.26.33.225 or https://platform.example.com
+UPGRADE_DOWNLOAD_BASE_URL=http://YOUR_PUBLIC_PLATFORM_HOST
+
+# Host ports. The installer can ask for replacements when a port is occupied.
+MYSQL_HOST_PORT=23306
+REDIS_HOST_PORT=26379
+NACOS_HOST_PORT=18848
+NACOS_GRPC_PORT=19848
+NACOS_RAFT_PORT=19849
+MINIO_API_PORT=19000
+MINIO_CONSOLE_PORT=19002
+GATEWAY_PORT=8060
+DEVICE_PORT=8062
+UKEY_PORT=8063
+ALARM_PORT=8064
+CONTENT_PORT=8065
+RULE_PORT=8066
+FORWARD_PORT=8067
+ROLE_PORT=8068
+REGISTRY_PORT=8069
+WEBSOCKET_PORT=8070
+LOG_PORT=8071
+NGINX_PORT=80
+NGINX_SSL_PORT=443
+EMQX_MQTT_PORT=1883
+EMQX_MQTTS_PORT=8883
+EMQX_DASHBOARD_PORT=18083
+
+UKEY_ADMIN_USERNAME=monitor_ukey
+UKEY_ADMIN_PASSWORD=Replace_Ukey_Admin_2026!
+
+# deferred: allow deployment without onsite UKey/SDK, then configure UKey later.
+# required: formal UKey mode; sdk/lib/libvauthsdk.so, PIN and AuthId must be ready.
+UKEY_SETUP_MODE=deferred
+VAUTH_SERVER_MODE=ukey
+# Fill this only when UKEY_SETUP_MODE=required.
+VAUTH_SERVER_PASSWORD=
+VAUTH_SERVER_AUTH_ID=44010100003330003024
+
+AUDIT_MODE=local
+LOCAL_AUDIT_IMAGE_URL=http://127.0.0.1:18088/api/audit/image
+LOCAL_AUDIT_TEXT_URL=http://127.0.0.1:18088/api/audit/text
+LOCAL_AUDIT_VIDEO_URL=http://127.0.0.1:18088/api/audit/video
+LOCAL_AUDIT_VIDEO_FRAME_INTERVAL=0.5
+LOCAL_AUDIT_VIDEO_MAX_FRAMES=200
+LOCAL_AUDIT_VIDEO_SAVE_FRAMES=false
+
+LOG_REPORT_TOKEN=
+PULL_PUBLIC_IMAGES=true
+AUTO_OPEN_FIREWALL=true
+AUTO_INSTALL_DOCKER=false

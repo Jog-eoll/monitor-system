@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="device-005-add-unified-device-mac" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <and>
+                <tableExists tableName="unified_device_info"/>
+                <not>
+                    <columnExists tableName="unified_device_info" columnName="mac"/>
+                </not>
+            </and>
+        </preConditions>
+        <addColumn tableName="unified_device_info">
+            <column name="mac" type="VARCHAR(64)" remarks="mac address"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="device-005-add-unified-device-location" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <and>
+                <tableExists tableName="unified_device_info"/>
+                <not>
+                    <columnExists tableName="unified_device_info" columnName="location"/>
+                </not>
+            </and>
+        </preConditions>
+        <addColumn tableName="unified_device_info">
+            <column name="location" type="VARCHAR(100)" remarks="device location"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="device-005-add-unified-device-region-id" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <and>
+                <tableExists tableName="unified_device_info"/>
+                <not>
+                    <columnExists tableName="unified_device_info" columnName="region_id"/>
+                </not>
+            </and>
+        </preConditions>
+        <addColumn tableName="unified_device_info">
+            <column name="region_id" type="BIGINT" remarks="region id"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="device-005-add-unified-device-longitude" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <and>
+                <tableExists tableName="unified_device_info"/>
+                <not>
+                    <columnExists tableName="unified_device_info" columnName="longitude"/>
+                </not>
+            </and>
+        </preConditions>
+        <addColumn tableName="unified_device_info">
+            <column name="longitude" type="DECIMAL(10,6)" remarks="longitude"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="device-005-add-unified-device-latitude" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <and>
+                <tableExists tableName="unified_device_info"/>
+                <not>
+                    <columnExists tableName="unified_device_info" columnName="latitude"/>
+                </not>
+            </and>
+        </preConditions>
+        <addColumn tableName="unified_device_info">
+            <column name="latitude" type="DECIMAL(10,6)" remarks="latitude"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="device-005-add-unified-device-version" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <and>
+                <tableExists tableName="unified_device_info"/>
+                <not>
+                    <columnExists tableName="unified_device_info" columnName="version"/>
+                </not>
+            </and>
+        </preConditions>
+        <addColumn tableName="unified_device_info">
+            <column name="version" type="VARCHAR(50)" remarks="device version"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="device-005-add-unified-device-manufacturer" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <and>
+                <tableExists tableName="unified_device_info"/>
+                <not>
+                    <columnExists tableName="unified_device_info" columnName="manufacturer"/>
+                </not>
+            </and>
+        </preConditions>
+        <addColumn tableName="unified_device_info">
+            <column name="manufacturer" type="VARCHAR(100)" remarks="manufacturer"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="device-005-add-unified-device-model" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <and>
+                <tableExists tableName="unified_device_info"/>
+                <not>
+                    <columnExists tableName="unified_device_info" columnName="model"/>
+                </not>
+            </and>
+        </preConditions>
+        <addColumn tableName="unified_device_info">
+            <column name="model" type="VARCHAR(100)" remarks="device model"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="device-005-add-unified-device-last-online-time" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <and>
+                <tableExists tableName="unified_device_info"/>
+                <not>
+                    <columnExists tableName="unified_device_info" columnName="last_online_time"/>
+                </not>
+            </and>
+        </preConditions>
+        <addColumn tableName="unified_device_info">
+            <column name="last_online_time" type="DATETIME" remarks="last online time"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="device-005-add-unified-device-extra-info" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <and>
+                <tableExists tableName="unified_device_info"/>
+                <not>
+                    <columnExists tableName="unified_device_info" columnName="extra_info"/>
+                </not>
+            </and>
+        </preConditions>
+        <addColumn tableName="unified_device_info">
+            <column name="extra_info" type="TEXT" remarks="extra info json"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="device-005-add-unified-device-region-index" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <and>
+                <tableExists tableName="unified_device_info"/>
+                <columnExists tableName="unified_device_info" columnName="region_id"/>
+                <not>
+                    <indexExists tableName="unified_device_info" indexName="idx_unified_device_region_id"/>
+                </not>
+            </and>
+        </preConditions>
+        <createIndex tableName="unified_device_info" indexName="idx_unified_device_region_id">
+            <column name="region_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

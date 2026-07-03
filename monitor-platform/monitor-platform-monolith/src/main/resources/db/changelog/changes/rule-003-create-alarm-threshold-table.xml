@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="003" author="system">
+        
+<preConditions onFail="MARK_RAN" onError="HALT">
+            <not>
+                <tableExists tableName="alarm_threshold"/>
+            </not>
+        </preConditions>
+
+<comment>创建告警阈值配置表</comment><createTable tableName="alarm_threshold" remarks="告警阈值配置表">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="threshold_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="threshold_type" type="VARCHAR(50)" remarks="阈值类型: 一级(严重)/二级(严重)/三级(警告)/四级(一般)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="threshold_config" type="TEXT" remarks="阈值配置(JSON格式)"/>
+            <column name="alert_level" type="VARCHAR(20)" defaultValue="general" remarks="告警级别: critical/serious/general/minor"/>
+            
+            <column name="status" type="VARCHAR(20)" defaultValue="enabled" remarks="状态: enabled/disabled"/>
+            <column name="description" type="VARCHAR(500)"/>
+            
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="update_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"/>
+        </createTable>
+        
+        <createIndex tableName="alarm_threshold" indexName="idx_threshold_type">
+            <column name="threshold_type"/>
+        </createIndex>
+        
+        <createIndex tableName="alarm_threshold" indexName="idx_status">
+            <column name="status"/>
+        </createIndex>
+        
+    </changeSet>
+
+</databaseChangeLog>

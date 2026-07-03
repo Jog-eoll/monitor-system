@@ -1,0 +1,1 @@
+function n(n){if(null==n||""===n)return!1;const i=String(n).trim().toLowerCase();return"disconnect"===i||"block"===i}function i(i){var r;return"false_alarm"===i.decision?!i.remark.trim():!i.action||!("confirm"!==i.decision||!n(i.action))&&!String(null!=(r=i.handlingOpinionText)?r:"").trim()}export{n as a,i};

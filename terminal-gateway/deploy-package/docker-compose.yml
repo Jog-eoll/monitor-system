@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # ========== MySQL 数据库（本地部署，自动初始化） ==========
+  terminal-gateway-mysql:
+    image: mysql:5.7
+    container_name: terminal-gateway-mysql
+    network_mode: host
+    environment:
+      - TZ=Asia/Shanghai
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-123456}
+      - MYSQL_DATABASE=${DB_NAME:-terminal_gateway}
+      - MYSQL_USER=${DB_USERNAME:-root}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-123456}
+    volumes:
+      - ./mysql/data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  terminal-gateway:
+    image: gateway-udp-proxy:${GATEWAY_VERSION:-1.0}
+    container_name: terminal-gateway-standalone
+    working_dir: /app/lib
+    entrypoint: ["java", "-Djava.security.egd=file:/dev/./urandom", "-Xmx512m", "-Xms256m", "-Djna.library.path=/app/lib", "-Dspring.config.location=optional:classpath:/,optional:file:/app/config/", "-jar", "/app/app.jar"]
+    network_mode: host
+    privileged: true
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
+      - JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8
+      - LD_LIBRARY_PATH=/app/lib
+      # 数据库配置：从 .env 读取
+      - SPRING_DATASOURCE_URL=jdbc:mysql://${DB_HOST:-127.0.0.1}:${DB_PORT:-3306}/${DB_NAME:-terminal_gateway}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME:-root}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-123456}
+      # 管控平台配置
+      - MONITOR_HOST=${MONITOR_HOST:-192.168.1.233}
+      - MONITOR_UKEY_PORT=${MONITOR_UKEY_PORT:-8080}
+      - MONITOR_DEVICE_PORT=${MONITOR_DEVICE_PORT:-8080}
+      - MONITOR_CONTENT_PORT=${MONITOR_CONTENT_PORT:-8080}
+      # VAuth 国密配置
+      - VAUTH_MOCK_MODE=${VAUTH_MOCK_MODE:-false}
+      - VAUTH_PASSWORD=${VAUTH_PASSWORD:-88888888}
+      - VAUTH_AUTH_ID=${VAUTH_AUTH_ID:-44030000003330000310}
+      - VAUTH_SERVER_ID=${VAUTH_SERVER_ID:-44010100003330003024}
+      - VAUTH_SVAC_MODE=${VAUTH_SVAC_MODE:-true}
+      # JmDNS 配置
+      - PROVIDER_JMDNS_ENABLED=${PROVIDER_JMDNS_ENABLED:-true}
+      - PROVIDER_JMDNS_BIND_ADDRESS=${PROVIDER_JMDNS_BIND_ADDRESS:-192.168.1.26}
+      - PROVIDER_JMDNS_ADVERTISE_HOST=${PROVIDER_JMDNS_ADVERTISE_HOST:-192.168.1.26}
+      # 设备注册配置
+      - REGISTRY_CLIENT_ID=${REGISTRY_CLIENT_ID:-terminal-udp-gateway-192.168.1.26-8093}
+      - DEVICE_VERSION=${DEVICE_VERSION:-1.0.0}
+      - DEVICE_LOCATION=${DEVICE_LOCATION:-}
+      - DEVICE_MANUFACTURER=${DEVICE_MANUFACTURER:-}
+      - DEVICE_MODEL=${DEVICE_MODEL:-}
+      - DEVICE_REMARK=${DEVICE_REMARK:-terminal decrypt gateway}
+      # 截图配置
+      - SNAPSHOT_ENABLED=${SNAPSHOT_ENABLED:-false}
+      - SNAPSHOT_INTERVAL_SECONDS=${SNAPSHOT_INTERVAL_SECONDS:-10}
+      - SNAPSHOT_TIMEOUT_MS=${SNAPSHOT_TIMEOUT_MS:-5000}
+    volumes:
+      # SDK 动态库目录
+      - ./lib:/app/lib
+      # 证书目录
+      - ./certs:/app/certs
+      # 配置目录
+      - ./config:/app/config
+      # USB UKey 设备
+      - /dev/bus/usb:/dev/bus/usb
+      # 日志目录
+      - ./logs:/app/logs
+    depends_on:
+      terminal-gateway-mysql:
+        condition: service_started
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"

@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: monitor-alarm
+  profiles:
+    active: dev
+  liquibase:
+    change-log: classpath:/db/changelog/db.changelog-master.xml
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_IP_PORT:192.168.1.31:8848}
+        namespace: ${NACOS_NAMESPACE:5c87647a-8a17-4adb-94ce-04047ea26d96}
+      config:
+        server-addr: ${NACOS_IP_PORT:192.168.1.31:8848}
+        namespace: ${NACOS_NAMESPACE:5c87647a-8a17-4adb-94ce-04047ea26d96}
+        file-extension: yml
+        enabled: true
+        refresh-enabled: true
+        shared-configs:
+          - application-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_IP_PORT:192.168.1.31:8858}
+        port: ${SENTINEL_PORT:10000}
+      eager: true
+
+alarm:
+  auto-black-screen:
+    enabled: ${ALARM_AUTO_BLACK_SCREEN_ENABLED:true}

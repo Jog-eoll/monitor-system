@@ -1,0 +1,562 @@
+version: '2.4'
+
+x-default-ulimits: &default-ulimits
+  nofile:
+    soft: 65535
+    hard: 65535
+
+services:
+  emqx:
+    image: emqx/emqx:5.4.0
+    container_name: emqx
+    ulimits: *default-ulimits
+    ports:
+      - "${EMQX_MQTT_PORT:-1883}:1883"
+      - "${EMQX_MQTTS_PORT:-8883}:8883"
+      - "${EMQX_DASHBOARD_PORT:-18083}:18083"
+    volumes:
+      - ./emqx/etc/emqx.conf:/opt/emqx/etc/emqx.conf:ro
+      - ./emqx/etc/acl.conf:/opt/emqx/etc/acl.conf:ro
+      - ./emqx/etc/certs:/opt/emqx/etc/certs:ro
+      - ./emqx/data:/opt/emqx/data
+      - ./emqx/log:/opt/emqx/log
+      # 公司域名证书（替换自签名 cert.pem/key.pem/cacert.pem）
+      # 实际部署时可取消注释并指向宿主机上真实证书路径
+      # - /etc/letsencrypt/live/mqtt.example.com/fullchain.pem:/opt/emqx/etc/certs/fullchain.pem:ro
+      # - /etc/letsencrypt/live/mqtt.example.com/privkey.pem:/opt/emqx/etc/certs/privkey.pem:ro
+      # - /etc/letsencrypt/live/mqtt.example.com/chain.pem:/opt/emqx/etc/certs/ca.pem:ro
+    environment:
+      EMQX_NAME: emqx
+      EMQX_HOST: 127.0.0.1
+    networks:
+      - monitor-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "emqx", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  nacos:
+    image: nacos/nacos-server:v2.2.0
+    container_name: nacos
+    ulimits: *default-ulimits
+    environment:
+      MYSQL_IP_PORT: ${MYSQL_IP_PORT}
+      MYSQL_USERNAME: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      JVM_XMS: 2048m
+      JVM_XMX: 2048m
+      MODE: standalone
+      PREFER_HOST_MODE: ip
+      SPRING_DATASOURCE_PLATFORM: mysql
+    ports:
+      - "${NACOS_HOST_PORT:-18848}:8848"
+      - "${NACOS_GRPC_PORT:-19848}:9848"
+      - "${NACOS_RAFT_PORT:-19849}:9849"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./nacos/logs:/home/nacos/logs
+      - ./nacos/conf/application.properties:/home/nacos/conf/application.properties
+    networks:
+      - monitor-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "curl --fail http://localhost:8848/nacos"]
+      interval: 10s
+      timeout: 20s
+      retries: 5
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ulimits: *default-ulimits
+    ports:
+      - "${MINIO_API_PORT:-19000}:9000"
+      - "${MINIO_CONSOLE_PORT:-19002}:9001"
+    volumes:
+      - "./minio/data1:/data1"
+      - "./minio/data2:/data2"
+      - "./minio/config:/root/.minio"
+    command: server --console-address ":9001" http://minio/data{1...2}
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - monitor-network
+    restart: always
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    ulimits: *default-ulimits
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 \"$${MINIO_ROOT_USER}\" \"$${MINIO_ROOT_PASSWORD}\" &&
+      mc mb --ignore-existing local/\"$${MINIO_BUCKET_NAME}\" &&
+      if [ \"$${MINIO_ACCESS_KEY}\" != \"$${MINIO_ROOT_USER}\" ]; then
+        mc admin user add local \"$${MINIO_ACCESS_KEY}\" \"$${MINIO_SECRET_KEY}\" || true;
+        mc admin policy attach local readwrite --user \"$${MINIO_ACCESS_KEY}\" ||
+          mc admin policy set local readwrite user=\"$${MINIO_ACCESS_KEY}\";
+      fi"
+    networks:
+      - monitor-network
+    restart: "no"
+  db:
+    image: mysql:5.7
+    container_name: mysql
+    ulimits: *default-ulimits
+    privileged: true
+    environment:
+      # root用户密码（必须通过环境变量注入，禁止硬编码）
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      #MYSQL_INIT_CONNECT: SET GLOBAL max_allowed_packet=16*1024*1024
+      TZ: Asia/Shanghai
+      MYSQL_DATABASE: nacos_config
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    ports:
+      - "${MYSQL_HOST_PORT:-23306}:3306"
+    command:
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_general_ci
+    volumes:
+      - ./mysql/data:/var/lib/mysql
+      - ./mysql/conf:/etc/mysql/conf.d
+      #初始化数据库脚本
+      - ./mysql/init:/docker-entrypoint-initdb.d/
+    networks:
+      - monitor-network
+  redis:
+    image: redis:latest
+    container_name: redis
+    ulimits: *default-ulimits
+    restart: always
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    ports:
+      - "${REDIS_HOST_PORT:-26379}:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - monitor-network
+  # 设备管理服务
+  monitor-device:
+    image: monitor-platform-device:latest
+    container_name: monitor-device
+    ulimits: *default-ulimits
+    env_file:
+      - .env
+    ports:
+      - "${DEVICE_PORT:-8062}:8062"
+    environment:
+      - SERVER_PORT=${DEVICE_PORT:-8062}
+      - MYSQL_IP_PORT=${MYSQL_IP_PORT}
+      - MYSQL_USERNAME=${MYSQL_USERNAME}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - NACOS_IP_PORT=${NACOS_IP_PORT}
+      - NACOS_NAMESPACE=${NACOS_NAMESPACE}
+      - SENTINEL_IP_PORT=${SENTINEL_IP_PORT}
+
+    networks:
+      - monitor-network
+    restart: unless-stopped
+
+  # UKey服务
+  monitor-ukey:
+    image: monitor-platform-ukey:latest
+    container_name: monitor-ukey
+    ulimits: *default-ulimits
+    env_file:
+      - .env
+    ports:
+      - "${UKEY_PORT:-8063}:8063"
+    volumes:
+      - ./sdk/lib:/opt/vauth/lib:ro
+      - /dev/bus/usb:/dev/bus/usb
+      - /run/udev:/run/udev:ro
+    environment:
+      - SERVER_PORT=${UKEY_PORT:-8063}
+      - MYSQL_IP_PORT=${MYSQL_IP_PORT}
+      - MYSQL_USERNAME=${MYSQL_USERNAME}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - NACOS_IP_PORT=${NACOS_IP_PORT}
+      - NACOS_NAMESPACE=${NACOS_NAMESPACE}
+      - SENTINEL_IP_PORT=${SENTINEL_IP_PORT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - UKEY_SETUP_MODE=${UKEY_SETUP_MODE:-deferred}
+      - VAUTH_SERVER_MODE=${VAUTH_SERVER_MODE:-ukey}
+      - VAUTH_SERVER_PASSWORD=${VAUTH_SERVER_PASSWORD}
+      - VAUTH_SERVER_AUTH_ID=${VAUTH_SERVER_AUTH_ID}
+
+      - LD_LIBRARY_PATH=/opt/vauth/lib
+    # UKey 模式需要透传 USB 设备到容器内
+    privileged: true
+    networks:
+      - monitor-network
+    restart: unless-stopped
+    depends_on:
+      - nacos
+      - db
+      - minio
+      - redis
+
+  # 告警服务（依赖device）
+  monitor-alarm:
+    image: monitor-platform-alarm:latest
+    container_name: monitor-alarm
+    ulimits: *default-ulimits
+    env_file:
+      - .env
+    ports:
+      - "${ALARM_PORT:-8064}:8064"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - SERVER_PORT=${ALARM_PORT:-8064}
+      - MYSQL_IP_PORT=${MYSQL_IP_PORT}
+      - MYSQL_USERNAME=${MYSQL_USERNAME}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - NACOS_IP_PORT=${NACOS_IP_PORT}
+      - NACOS_NAMESPACE=${NACOS_NAMESPACE}
+      - SENTINEL_IP_PORT=${SENTINEL_IP_PORT}
+      - MONITOR_LOG_URL=${MONITOR_LOG_URL:-http://monitor-log:8071}
+      - LOG_REPORT_TOKEN=${LOG_REPORT_TOKEN}
+
+      - MONITOR_DEVICE_URL=${MONITOR_DEVICE_URL}
+      - MONITOR_CONTENT_URL=${MONITOR_CONTENT_URL}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    networks:
+      - monitor-network
+    restart: unless-stopped
+    depends_on:
+      - nacos
+      - db
+      - minio
+      - redis
+      - monitor-device
+      - monitor-forward
+      - monitor-content
+
+  # 规则服务
+  monitor-rule:
+    image: monitor-platform-rule:latest
+    container_name: monitor-rule
+    ulimits: *default-ulimits
+    env_file:
+      - .env
+    ports:
+      - "${RULE_PORT:-8066}:8066"
+    environment:
+      - SERVER_PORT=${RULE_PORT:-8066}
+      - MYSQL_IP_PORT=${MYSQL_IP_PORT}
+      - MYSQL_USERNAME=${MYSQL_USERNAME}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - NACOS_IP_PORT=${NACOS_IP_PORT}
+      - NACOS_NAMESPACE=${NACOS_NAMESPACE}
+      - SENTINEL_IP_PORT=${SENTINEL_IP_PORT}
+
+    networks:
+      - monitor-network
+    restart: unless-stopped
+    depends_on:
+      - nacos
+      - db
+      - minio
+      - redis
+
+  # 内容检测服务（依赖rule）
+  monitor-content:
+    image: monitor-platform-content:latest
+    container_name: monitor-content
+    ulimits: *default-ulimits
+    env_file:
+      - .env
+    network_mode: host
+    environment:
+      - SERVER_PORT=${CONTENT_PORT:-8065}
+      - JAVA_TOOL_OPTIONS=-Dserver.port=${CONTENT_PORT:-8065}
+      - SPRING_DATASOURCE_URL=jdbc:mysql://127.0.0.1:${MYSQL_HOST_PORT:-23306}/${MYSQL_DB:-monitor_platform}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=${MYSQL_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_PASSWORD}
+      - SPRING_REDIS_HOST=${CONTENT_REDIS_HOST:-127.0.0.1}
+      - SPRING_REDIS_PORT=${CONTENT_REDIS_PORT:-26379}
+      - SPRING_REDIS_PASSWORD=${REDIS_PASSWORD}
+      - MYSQL_IP_PORT=${CONTENT_MYSQL_IP_PORT:-127.0.0.1:23306}
+      - MYSQL_USERNAME=${MYSQL_USERNAME}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - REDIS_HOST=${CONTENT_REDIS_HOST:-127.0.0.1}
+      - REDIS_PORT=${CONTENT_REDIS_PORT:-26379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - NACOS_IP_PORT=${CONTENT_NACOS_IP_PORT:-127.0.0.1:18848}
+      - NACOS_NAMESPACE=${NACOS_NAMESPACE}
+      - SENTINEL_IP_PORT=${SENTINEL_IP_PORT}
+
+      - MONITOR_RULE_URL=${CONTENT_MONITOR_RULE_URL:-http://127.0.0.1:8066}
+      - MONITOR_ALARM_URL=${CONTENT_MONITOR_ALARM_URL:-http://127.0.0.1:8064}
+      - MONITOR_DEVICE_URL=${CONTENT_MONITOR_DEVICE_URL:-http://127.0.0.1:8062}
+      - MONITOR_FORWARD_URL=${CONTENT_MONITOR_FORWARD_URL:-http://127.0.0.1:8067}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_ENDPOINT=${CONTENT_MINIO_ENDPOINT:-http://127.0.0.1:19000}
+      - AUDIT_MODE=${AUDIT_MODE}
+      - LOCAL_AUDIT_IMAGE_URL=${LOCAL_AUDIT_IMAGE_URL}
+      - LOCAL_AUDIT_TEXT_URL=${LOCAL_AUDIT_TEXT_URL}
+      - LOCAL_AUDIT_VIDEO_URL=${LOCAL_AUDIT_VIDEO_URL}
+      - LOCAL_AUDIT_VIDEO_FRAME_INTERVAL=${LOCAL_AUDIT_VIDEO_FRAME_INTERVAL}
+      - LOCAL_AUDIT_VIDEO_MAX_FRAMES=${LOCAL_AUDIT_VIDEO_MAX_FRAMES}
+      - LOCAL_AUDIT_VIDEO_SAVE_FRAMES=${LOCAL_AUDIT_VIDEO_SAVE_FRAMES}
+      - CONTENT_JMDNS_BIND_ADDRESS=${CONTENT_JMDNS_BIND_ADDRESS}
+    restart: unless-stopped
+    depends_on:
+      - nacos
+      - db
+      - minio
+      - redis
+
+  # 转发服务
+  # WebSocket push service
+  monitor-websocket:
+    image: monitor-platform-websocket:latest
+    container_name: monitor-websocket
+    ulimits: *default-ulimits
+    env_file:
+      - .env
+    ports:
+      - "${WEBSOCKET_PORT:-8070}:8070"
+    environment:
+      - SERVER_PORT=${WEBSOCKET_PORT:-8070}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - NACOS_IP_PORT=${NACOS_IP_PORT}
+      - NACOS_NAMESPACE=${NACOS_NAMESPACE}
+      - SENTINEL_IP_PORT=${SENTINEL_IP_PORT}
+    networks:
+      - monitor-network
+    restart: unless-stopped
+    depends_on:
+      - nacos
+      - redis
+
+  monitor-log:
+    image: monitor-platform-log:latest
+    container_name: monitor-log
+    ulimits: *default-ulimits
+    env_file:
+      - .env
+    ports:
+      - "${LOG_PORT:-8071}:8071"
+    environment:
+      - SERVER_PORT=${LOG_PORT:-8071}
+      - MYSQL_IP_PORT=${MYSQL_IP_PORT}
+      - MYSQL_USERNAME=${MYSQL_USERNAME}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - NACOS_IP_PORT=${NACOS_IP_PORT}
+      - NACOS_NAMESPACE=${NACOS_NAMESPACE}
+      - SENTINEL_IP_PORT=${SENTINEL_IP_PORT}
+      - LOG_REPORT_TOKEN=${LOG_REPORT_TOKEN}
+      - LOG_RETENTION_DAYS=${LOG_RETENTION_DAYS:-90}
+      - LOG_DEDUP_WINDOW_SECONDS=${LOG_DEDUP_WINDOW_SECONDS:-60}
+    networks:
+      - monitor-network
+    restart: unless-stopped
+    depends_on:
+      - nacos
+      - db
+      - redis
+
+  monitor-forward:
+    image: monitor-platform-forward:latest
+    container_name: monitor-forward
+    ulimits: *default-ulimits
+    env_file:
+      - .env
+    ports:
+      - "${FORWARD_PORT:-8067}:8067"
+    environment:
+      - SERVER_PORT=${FORWARD_PORT:-8067}
+      - MYSQL_IP_PORT=${MYSQL_IP_PORT}
+      - MYSQL_USERNAME=${MYSQL_USERNAME}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - NACOS_IP_PORT=${NACOS_IP_PORT}
+      - NACOS_NAMESPACE=${NACOS_NAMESPACE}
+      - SENTINEL_IP_PORT=${SENTINEL_IP_PORT}
+      - MONITOR_LOG_URL=${MONITOR_LOG_URL:-http://monitor-log:8071}
+      - LOG_REPORT_TOKEN=${LOG_REPORT_TOKEN}
+      - DISPATCH_MODE=${DISPATCH_MODE:-http}
+      - MQTT_BROKER_URL=${MQTT_BROKER_URL:-ssl://127.0.0.1:8883}
+      - MQTT_USERNAME=${MQTT_USERNAME:-}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-}
+      - MQTT_TENANT_ID=${MQTT_TENANT_ID:-default}
+      - MQTT_SITE_ID=${MQTT_SITE_ID:-site-001}
+      - MQTT_PLATFORM_CLIENT_ID=${MQTT_PLATFORM_CLIENT_ID:-monitor-platform-001}
+      - MQTT_RECONNECT_INTERVAL_MS=${MQTT_RECONNECT_INTERVAL_MS:-30000}
+      - MQTT_DEFAULT_DEVICE_PASSWORD=${MQTT_DEFAULT_DEVICE_PASSWORD:-}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME}
+      - UPGRADE_DOWNLOAD_BASE_URL=${UPGRADE_DOWNLOAD_BASE_URL:-}
+
+      - MONITOR_DEVICE_URL=${MONITOR_DEVICE_URL}
+    networks:
+      - monitor-network
+    restart: unless-stopped
+    depends_on:
+      - nacos
+      - db
+      - minio
+      - redis
+
+
+
+  # 角色权限服务
+  monitor-role:
+    image: monitor-platform-role:latest
+    container_name: monitor-role
+    ulimits: *default-ulimits
+    env_file:
+      - .env
+    ports:
+      - "${ROLE_PORT:-8068}:8068"
+    environment:
+      - SERVER_PORT=${ROLE_PORT:-8068}
+      - MYSQL_IP_PORT=${MYSQL_IP_PORT}
+      - MYSQL_USERNAME=${MYSQL_USERNAME}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - NACOS_IP_PORT=${NACOS_IP_PORT}
+      - NACOS_NAMESPACE=${NACOS_NAMESPACE}
+      - SENTINEL_IP_PORT=${SENTINEL_IP_PORT}
+    networks:
+      - monitor-network
+    restart: unless-stopped
+    depends_on:
+      - nacos
+      - db
+      - redis
+
+  # 注册中心服务
+  monitor-registry-server:
+    image: monitor-platform-registry-server:latest
+    container_name: monitor-registry-server
+    ulimits: *default-ulimits
+    env_file:
+      - .env
+    ports:
+      - "${REGISTRY_PORT:-8069}:8069"
+    environment:
+      - SERVER_PORT=${REGISTRY_PORT:-8069}
+      - MYSQL_IP_PORT=${MYSQL_IP_PORT}
+      - MYSQL_USERNAME=${MYSQL_USERNAME}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - NACOS_IP_PORT=${NACOS_IP_PORT}
+      - NACOS_NAMESPACE=${NACOS_NAMESPACE}
+    networks:
+      - monitor-network
+    restart: unless-stopped
+    depends_on:
+      - nacos
+      - db
+      - redis
+
+  # Nginx 反向代理（TLS 终止层）
+  nginx:
+    image: nginx:alpine
+    container_name: monitor-nginx
+    ulimits: *default-ulimits
+    ports:
+      - "${NGINX_PORT:-80}:80"
+      - "${NGINX_SSL_PORT:-443}:443"
+    volumes:
+      - ./nginx/www:/usr/share/nginx/html
+      - ./nginx/conf/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/logs:/var/log/nginx
+      - ./nginx/certs:/etc/nginx/certs    # SSL 证书目录
+    depends_on:
+      - monitor-gateway
+      - monitor-websocket
+    networks:
+      - monitor-network
+    restart: unless-stopped
+
+  # API网关（统一路由 + CORS）
+  monitor-gateway:
+    image: monitor-platform-gateway:latest
+    container_name: monitor-gateway
+    ulimits: *default-ulimits
+    env_file:
+      - .env
+    ports:
+      - "${GATEWAY_PORT:-8060}:8060"
+    environment:
+      - SERVER_PORT=${GATEWAY_PORT:-8060}
+      - NACOS_IP_PORT=${NACOS_IP_PORT}
+      - NACOS_NAMESPACE=${NACOS_NAMESPACE}
+      - SENTINEL_IP_PORT=${SENTINEL_IP_PORT}
+
+    networks:
+      - monitor-network
+    restart: unless-stopped
+    depends_on:
+      - nacos
+      - db
+      - minio
+      - redis
+      - monitor-websocket
+      - monitor-log
+
+networks:
+  monitor-network:
+    driver: bridge

@@ -1,0 +1,74 @@
+package com.monitorplatform.mqtt.core.dto;
+
+import lombok.Data;
+
+import java.io.Serializable;
+import java.util.Map;
+
+/**
+ * 回执消息 —— 现场网关执行完命令后上行回报给平台。
+ */
+@Data
+public class MqttReplyMessage implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+    /** 原始命令的 messageId（用于关联） */
+    private String commandMessageId;
+
+    /** 执行状态：SUCCESS / FAILED / PROCESSING / REJECTED */
+    private String status;
+
+    /** 消息描述 */
+    private String message;
+
+    /** 返回数据（可选） */
+    private Map<String, Object> data;
+
+    /** 网关设备 ID */
+    private String gatewayDeviceId;
+
+    /** 时间戳（epoch millis） */
+    private Long timestamp;
+
+    public static MqttReplyMessage success(String commandMessageId, String gatewayDeviceId, Map<String, Object> data) {
+        MqttReplyMessage reply = new MqttReplyMessage();
+        reply.commandMessageId = commandMessageId;
+        reply.gatewayDeviceId = gatewayDeviceId;
+        reply.status = "SUCCESS";
+        reply.message = "执行成功";
+        reply.data = data;
+        reply.timestamp = System.currentTimeMillis();
+        return reply;
+    }
+
+    public static MqttReplyMessage failed(String commandMessageId, String gatewayDeviceId, String errorMsg) {
+        MqttReplyMessage reply = new MqttReplyMessage();
+        reply.commandMessageId = commandMessageId;
+        reply.gatewayDeviceId = gatewayDeviceId;
+        reply.status = "FAILED";
+        reply.message = errorMsg;
+        reply.timestamp = System.currentTimeMillis();
+        return reply;
+    }
+
+    public static MqttReplyMessage processing(String commandMessageId, String gatewayDeviceId) {
+        MqttReplyMessage reply = new MqttReplyMessage();
+        reply.commandMessageId = commandMessageId;
+        reply.gatewayDeviceId = gatewayDeviceId;
+        reply.status = "PROCESSING";
+        reply.message = "命令已接收，正在执行";
+        reply.timestamp = System.currentTimeMillis();
+        return reply;
+    }
+
+    public static MqttReplyMessage rejected(String commandMessageId, String gatewayDeviceId, String reason) {
+        MqttReplyMessage reply = new MqttReplyMessage();
+        reply.commandMessageId = commandMessageId;
+        reply.gatewayDeviceId = gatewayDeviceId;
+        reply.status = "REJECTED";
+        reply.message = reason;
+        reply.timestamp = System.currentTimeMillis();
+        return reply;
+    }
+}

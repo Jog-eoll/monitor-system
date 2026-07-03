@@ -1,0 +1,59 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="003" author="system">
+        
+<preConditions onFail="MARK_RAN" onError="HALT">
+            <not>
+                <tableExists tableName="device_usage_record"/>
+            </not>
+        </preConditions>
+
+<comment>创建设备占用记录表</comment><createTable tableName="device_usage_record" remarks="设备占用记录表(支持分支级占用检测)">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="device_id" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="device_type" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="chain_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="chain_name" type="VARCHAR(100)" remarks="链路名称(冗余字段)"/>
+            <column name="branch_code" type="VARCHAR(50)" remarks="分支编码(主节点为NULL,分支节点为B1/B2...)"/>
+            
+            <column name="usage_status" type="INT" defaultValue="1" remarks="占用状态: 0-已释放, 1-占用中"/>
+            
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="update_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"/>
+        </createTable>
+        
+        <createIndex tableName="device_usage_record" indexName="idx_device_id">
+            <column name="device_id"/>
+        </createIndex>
+        
+        <createIndex tableName="device_usage_record" indexName="idx_chain_id">
+            <column name="chain_id"/>
+        </createIndex>
+        
+        <createIndex tableName="device_usage_record" indexName="idx_branch_code">
+            <column name="branch_code"/>
+        </createIndex>
+        
+        <createIndex tableName="device_usage_record" indexName="idx_usage_status">
+            <column name="usage_status"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

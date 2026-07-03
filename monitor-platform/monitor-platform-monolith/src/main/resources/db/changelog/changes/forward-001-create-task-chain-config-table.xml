@@ -1,0 +1,78 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="001" author="system">
+        
+<preConditions onFail="MARK_RAN" onError="HALT">
+            <not>
+                <tableExists tableName="task_chain_config"/>
+            </not>
+        </preConditions>
+
+<comment>创建任务链路配置表</comment><createTable tableName="task_chain_config" remarks="任务链路配置表">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="chain_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="chain_code" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="chain_desc" type="VARCHAR(500)"/>
+            
+            <column name="status" type="INT" defaultValue="0" remarks="链路状态: 0-离线, 1-在线, 2-部分可用"/>
+            <column name="enabled" type="INT" defaultValue="1" remarks="是否启用: 0-禁用, 1-启用"/>
+            <column name="deleted" type="INT" defaultValue="0" remarks="逻辑删除: 0-未删除, 1-已删除"/>
+            
+            <column name="version" type="INT" defaultValue="1" remarks="配置版本号"/>
+            <column name="parent_version_id" type="BIGINT" remarks="父版本ID"/>
+            
+            <column name="validation_status" type="INT" defaultValue="0" remarks="校验状态: 0-未校验, 1-通过, 2-失败"/>
+            <column name="validation_message" type="TEXT" remarks="校验消息"/>
+            <column name="last_validation_time" type="DATETIME" remarks="最后校验时间"/>
+            
+            <column name="total_nodes" type="INT" defaultValue="0" remarks="总节点数"/>
+            <column name="core_nodes" type="INT" defaultValue="0" remarks="核心节点数"/>
+            <column name="optional_nodes" type="INT" defaultValue="0" remarks="可选节点数"/>
+            
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="update_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"/>
+            <column name="created_by" type="VARCHAR(50)"/>
+            <column name="updated_by" type="VARCHAR(50)"/>
+            
+            <column name="remark" type="VARCHAR(500)"/>
+        </createTable>
+        
+        <addUniqueConstraint tableName="task_chain_config" columnNames="chain_code" constraintName="uk_chain_code"/>
+        
+        <createIndex tableName="task_chain_config" indexName="idx_chain_name">
+            <column name="chain_name"/>
+        </createIndex>
+        
+        <createIndex tableName="task_chain_config" indexName="idx_status">
+            <column name="status"/>
+        </createIndex>
+        
+        <createIndex tableName="task_chain_config" indexName="idx_enabled">
+            <column name="enabled"/>
+        </createIndex>
+        
+        <createIndex tableName="task_chain_config" indexName="idx_deleted">
+            <column name="deleted"/>
+        </createIndex>
+        
+        <createIndex tableName="task_chain_config" indexName="idx_create_time">
+            <column name="create_time"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
+

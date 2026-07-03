@@ -1,0 +1,59 @@
+spring:
+  application:
+    name: monitor-forward
+  profiles:
+    active: dev
+  liquibase:
+    change-log: classpath:/db/changelog/db.changelog-master.xml
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_IP_PORT:192.168.1.31:8848}
+        namespace: ${NACOS_NAMESPACE:5c87647a-8a17-4adb-94ce-04047ea26d96}
+      config:
+        server-addr: ${NACOS_IP_PORT:192.168.1.31:8848}
+        namespace: ${NACOS_NAMESPACE:5c87647a-8a17-4adb-94ce-04047ea26d96}
+        file-extension: yml
+        enabled: true
+        refresh-enabled: true
+        shared-configs:
+          - application-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+    sentinel:
+      transport:
+        dashboard: ${SENTINEL_IP_PORT:192.168.1.31:8858}
+        port: ${SENTINEL_PORT:10003}
+      eager: true
+
+# MQTT 下发模式配置（可被 Nacos 覆盖）
+forward:
+  dispatch:
+    mode: ${DISPATCH_MODE:http}
+    mqtt-broker-url: ${MQTT_BROKER_URL:ssl://127.0.0.1:8883}
+    mqtt-username: ${MQTT_USERNAME:}
+    mqtt-password: ${MQTT_PASSWORD:}
+    tenant-id: ${MQTT_TENANT_ID:default}
+    site-id: ${MQTT_SITE_ID:site-001}
+    platform-client-id: ${MQTT_PLATFORM_CLIENT_ID:monitor-platform-001}
+    keep-alive-sec: 30
+    command-timeout-sec: 60
+    reconnect-interval-ms: ${MQTT_RECONNECT_INTERVAL_MS:30000}
+    heartbeat-interval-sec: 30
+    qos: 1
+    auth-enabled: ${MQTT_AUTH_ENABLED:true}
+    device-default-password: ${MQTT_DEVICE_DEFAULT_PASSWORD:}
+    allow-empty-device-password: ${MQTT_ALLOW_EMPTY_DEVICE_PASSWORD:true}
+    platform-client-prefix: ${MQTT_PLATFORM_CLIENT_PREFIX:monitor-platform,platform,server}
+    timeout-scan-interval-ms: 30000
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://minio:9000}
+  access-key: ${MINIO_ACCESS_KEY:}
+  secret-key: ${MINIO_SECRET_KEY:}
+  bucket-name: ${MINIO_BUCKET_NAME:${MINIO_BUCKET:monitor-platform}}
+
+upgrade:
+  download-base-url: ${UPGRADE_DOWNLOAD_BASE_URL:}
+
+ip-change:
+  callback:
+    enabled: true

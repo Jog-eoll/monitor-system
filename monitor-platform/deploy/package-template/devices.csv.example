@@ -1,0 +1,5 @@
+deviceId,deviceType,role,ip,httpPort,sshPort,sshUser,certFile,certSerialNo,ukeySn,authId,parentDeviceId,screenDeviceId,screenIp,screenPort,remark
+PLATFORM-LITE-001,monitor_platform_monolith,control,192.168.1.10,18080,22,ops,,,,,,,,,one-to-many light platform
+GW-PUB-001,publish_gateway,encrypt,192.168.1.10,18092,22,ops,publish-gateway/GW-PUB-001_SIGN.cer,,UKEY-PUB-001,44030000003330000305,,,,,same host as lightweight platform
+GW-TERM-001,terminal_encrypt_gateway,decrypt,192.168.1.26,18093,22,ops,terminal-gateway/GW-TERM-001_SIGN.cer,,UKEY-TERM-001,44030000003330000310,GW-PUB-001,SCREEN-001,192.168.1.126,9520,
+GW-TERM-002,terminal_encrypt_gateway,decrypt,192.168.1.27,18093,22,ops,terminal-gateway/GW-TERM-002_SIGN.cer,,UKEY-TERM-002,44030000003330000311,GW-PUB-001,SCREEN-002,192.168.1.127,9520,

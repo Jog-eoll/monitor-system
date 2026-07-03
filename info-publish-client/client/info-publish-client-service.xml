@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<service>
+  <id>info-publish-client</id>
+  <name>info-publish-client</name>
+  <description>Info Publish Client Windows service</description>
+
+  <executable>%BASE%\jre\bin\java.exe</executable>
+  <arguments>-Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Djava.library.path="%BASE%" -Djna.library.path="%BASE%;%BASE%\windivert" -Xms512m -Xmx1024m -jar "%BASE%\info-publish-client.jar" --spring.config.location=file:config/application.yml</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+
+  <startmode>Automatic</startmode>
+
+  <env name="PATH" value="%BASE%;%BASE%\jre\bin;%BASE%\windivert;%PATH%" />
+
+  <logpath>%BASE%\log</logpath>
+  <log mode="roll-by-size-time">
+    <sizeThreshold>10240</sizeThreshold>
+    <pattern>yyyyMMdd</pattern>
+    <autoRollAtTime>00:00:00</autoRollAtTime>
+    <maxFiles>5</maxFiles>
+  </log>
+</service>

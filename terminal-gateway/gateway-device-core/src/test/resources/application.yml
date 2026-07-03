@@ -1,0 +1,95 @@
+### 设备
+device:
+  # 设备自动发现
+  discovery:
+    enabled: true
+    scan-interval-minutes: 1
+    mappings:
+      - vendor: JET_FILE_II_STANDARD
+        port: 9520
+      - vendor: JET_FILE_II_STANDARD
+        port: 9520
+        ips:
+          - 192.168.113.239
+      - vendor: NOVA_STAR_VIPLEX_CORE
+        sdk: true
+      - vendor: COLOR_LIGHT_STANDARD
+        ips:
+        #   - 192.168.113.129
+        #   - 192.168.113.109
+      - vendor: COLOR_LIGHT_STANDARD
+        port: 8989
+        subnets:
+          - 192.168.113.1/24
+          - 192.168.1.1/24
+        timeout-ms: 3000
+        concurrency: 20
+    # 合规校验 —— 显式分组按书写顺序优先判定，全部不匹配时 fallback 到 default（若启用）
+    compliance:
+      JET_FILE_II_STANDARD:
+        default:
+          enabled: true
+      NOVA_STAR_VIPLEX_CORE:
+        TB4-series:
+          rules:
+            - field: productName
+              expected:
+                - "TB4"
+                - "T4H"
+        TB30-series:
+          rules:
+            - field: productName
+              expected:
+                - "TB30"
+                - "T30"
+        default:
+          enabled: true
+  fonts:
+    local-path: "D:/Projects/libs/fonts"
+
+  JetFileII:
+    ### text转nmg默认配置
+    text:
+      default-file-name: "default"
+      font-color: RED_WHITE_H
+      font: CN_16x16
+      effect-in: MOVE_LEFT
+      effect-out: FAN_IN
+
+  NovaStar:
+    ViplexCore:
+      ### NovaStar ViplexCore SDK（需要 sdk-dir 指向外部 SDK 目录）
+      sdk-dir: "D:/Projects/libs/ViplexCore_3.6.3.0101/windows"
+      data-dir: "D:/Cache/TEST/NovaViplexCore"
+      accounts:
+        # TB30(默认)
+        - accountId: "admin"
+          password: "SN2008@+"
+        # TB4(默认)
+        - accountId: "admin"
+          password: "12345678"
+        - accountId: "admin"
+          password: "123456"
+        - accountId: "admin"
+          password: "123456789"
+        - accountId: "admin"
+          password: "1234567890"
+      text:
+        flow-font-family: "宋体"
+        run-font-family: "宋体"
+        font-size: 20
+        text-color: "#FFFF0000"
+        run-background: "#00000000"
+        flow-background: "#00FFFFFF"
+        language: "zh-cn"
+
+  ColorLight:
+    accounts:
+      - accountId: "admin"
+        password: "console"
+      - accountId: "admin"
+        password: "Console@123"
+
+logging:
+  level:
+    com.gateway.device: debug

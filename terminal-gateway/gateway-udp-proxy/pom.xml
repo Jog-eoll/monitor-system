@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gateway</groupId>
+        <artifactId>terminal-gateway</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>gateway-udp-proxy</artifactId>
+    <packaging>jar</packaging>
+
+    <properties>
+        <docker.host>http://192.168.1.26:2375</docker.host>
+        <docker.image.name>gateway-udp-proxy</docker.image.name>
+        <docker.image.tag>1.0</docker.image.tag>
+    </properties>
+
+    <dependencies>
+        <!-- Spring Boot Starter Web -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- Netty -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+        </dependency>
+
+        <!-- MyBatis Plus -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-boot-starter</artifactId>
+        </dependency>
+
+        <!-- MySQL -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- gateway-common -->
+        <dependency>
+            <groupId>com.gateway</groupId>
+            <artifactId>gateway-common</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- gateway-crypto -->
+        <dependency>
+            <groupId>com.gateway</groupId>
+            <artifactId>gateway-crypto</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- gateway-auth -->
+        <dependency>
+            <groupId>com.gateway</groupId>
+            <artifactId>gateway-auth</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- gateway-device-core: 设备自动发现、协议适配、Netty 传输层 -->
+        <dependency>
+            <groupId>com.gateway</groupId>
+            <artifactId>gateway-device-core</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- MinIO -->
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>8.5.9</version>
+        </dependency>
+
+        <!-- Nova Java SDK -->
+
+
+        <!-- 设备自动注册客户端 -->
+        <dependency>
+            <groupId>com.monitorplatform</groupId>
+            <artifactId>monitor-platform-registry-client</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
+        <!-- 自动服务发现 -->
+        <dependency>
+            <groupId>com.monitorplatform</groupId>
+            <artifactId>monitor-platform-provider</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>2.7.14</version>
+                <configuration>
+                    <includeSystemScope>true</includeSystemScope>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>com.spotify</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+                <version>1.0.0</version>
+                <executions>
+                    <execution>
+                        <id>build-image</id>
+                        <phase>install</phase>
+                        <goals>
+                            <goal>build</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <imageName>${docker.image.name}</imageName>
+                    <imageTags>
+                        <imageTag>${docker.image.tag}</imageTag>
+                    </imageTags>
+                    <dockerDirectory>${project.basedir}</dockerDirectory>
+                    <dockerHost>${docker.host}</dockerHost>
+                    <resources>
+                        <resource>
+                            <targetPath>/</targetPath>
+                            <directory>${project.build.directory}</directory>
+                            <include>${project.build.finalName}.jar</include>
+                        </resource>
+                    </resources>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

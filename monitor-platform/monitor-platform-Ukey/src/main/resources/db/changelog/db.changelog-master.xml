@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        logicalFilePath="monitor-platform-ukey/db.changelog-master.xml"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="ukey-001-create-pin-history" author="system">
+        <sql dbms="mysql" splitStatements="true" stripComments="true"><![CDATA[
+CREATE TABLE IF NOT EXISTS `pin_history` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `cert_serial_no` varchar(128) NOT NULL COMMENT '关联的证书序列号',
+  `pin_hash` varchar(255) NOT NULL COMMENT '历史PIN码哈希值',
+  `pin_salt` varchar(64) DEFAULT NULL COMMENT 'PIN码盐值',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_cert_serial_no` (`cert_serial_no`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='PIN码历史记录表';
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="ukey-002-create-ukey-certificate" author="system">
+        <sql dbms="mysql" splitStatements="true" stripComments="true"><![CDATA[
+CREATE TABLE IF NOT EXISTS `ukey_certificate` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `cert_serial_no` varchar(128) NOT NULL COMMENT '证书唯一编号',
+  `certificate_content` text COMMENT '证书内容',
+  `valid_from` datetime NOT NULL COMMENT '证书生效时间',
+  `valid_until` datetime NOT NULL COMMENT '证书过期时间',
+  `crypto_algorithm` varchar(32) NOT NULL DEFAULT 'SM2' COMMENT '加密算法',
+  `bound_client_id` varchar(64) DEFAULT NULL COMMENT '绑定的客户端ID',
+  `cert_status` varchar(20) NOT NULL DEFAULT 'NORMAL' COMMENT '证书状态',
+  `issuer` varchar(255) DEFAULT NULL COMMENT '证书颁发机构',
+  `subject` varchar(255) DEFAULT NULL COMMENT '证书主体信息',
+  `remark` varchar(512) DEFAULT NULL COMMENT '备注',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '录入时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `online_status` varchar(16) NOT NULL DEFAULT 'OFFLINE' COMMENT '在线状态',
+  `last_auth_time` datetime DEFAULT NULL COMMENT '最近认证成功时间',
+  `last_offline_time` datetime DEFAULT NULL COMMENT '最近离线时间',
+  `display_name` varchar(128) DEFAULT NULL COMMENT 'UKey显示名称',
+  `pin_hash` varchar(255) DEFAULT NULL COMMENT 'UKey PIN码哈希值',
+  `pin_salt` varchar(64) DEFAULT NULL COMMENT 'PIN码盐值',
+  `pin_update_time` datetime DEFAULT NULL COMMENT 'PIN码最后更新时间',
+  `last_heartbeat_time` datetime DEFAULT NULL COMMENT '客户端最近心跳时间',
+  `client_ip` varchar(64) DEFAULT NULL COMMENT '客户端最近上报IP',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `cert_serial_no` (`cert_serial_no`),
+  KEY `idx_cert_serial_no` (`cert_serial_no`),
+  KEY `idx_bound_client_id` (`bound_client_id`),
+  KEY `idx_cert_status` (`cert_status`),
+  KEY `idx_online_status` (`online_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='UKey证书管理表';
+        ]]></sql>
+    </changeSet>
+
+</databaseChangeLog>

@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  # ========== MySQL 数据库（已切换到外部 MySQL，不再自建容器） ==========
+  # 原因：宿主机已有稳定运行的 mysql 容器（端口 3306），自建 MySQL 使用 host 网络模式会端口冲突导致 Restarting
+  # 前置条件：外部 MySQL 中须手动创建 udp_proxy_gateway 数据库并导入 udp_proxy_rule 表结构
+  # .env 中的 DB_USERNAME / DB_PASSWORD 须填写外部 MySQL 的有效账号密码
+
+  # Redis 缓存（内容缓存：FILE_PLAY 播放指令命中复用）
+  publish-gateway-redis:
+    image: redis:7-alpine
+    container_name: publish-gateway-redis
+    network_mode: host
+    volumes:
+      - ./redis/data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  publish-gateway:
+    image: gateway-udp-proxy:1.0.0
+    container_name: gateway-udp-proxy
+    # host 网络模式：直接监听宿主机 UDP 端口，无需逐一映射；同时访问宿主机 USB UKey 设备
+    network_mode: host
+    # privileged：允许容器访问 USB 设备（UKey 硬件必须）
+    privileged: true
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
+      - JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8
+      # 告知 OS 动态链接器去 /app/lib 查找 libvauthsdk.so 的级联依赖库（libCommonLib.so 等）
+      - LD_LIBRARY_PATH=/app/lib
+      # 数据库配置：MySQL 与本服务同在 host 网络，使用 127.0.0.1 访问
+      - DB_HOST=127.0.0.1
+      - DB_PORT=3306
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      # Redis 配置：Redis 与本服务同在 host 网络，使用 127.0.0.1 访问
+      - REDIS_HOST=127.0.0.1
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_DATABASE=2
+      # MinIO 配置
+      - MINIO_HOST=${MINIO_HOST}
+      - MINIO_PORT=${MINIO_PORT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET}
+      # 管控平台地址
+      - MONITOR_HOST=${MONITOR_HOST}
+      - MONITOR_CONTENT_PORT=${MONITOR_CONTENT_PORT}
+      - MONITOR_UKEY_PORT=${MONITOR_UKEY_PORT}
+      # MQTT Agent 配置：发布网关主动连接公网 EMQX，默认关闭
+      - MQTT_AGENT_ENABLED=${MQTT_AGENT_ENABLED:-false}
+      - MQTT_BROKER_URL=${MQTT_BROKER_URL:-ssl://127.0.0.1:8883}
+      - MQTT_USERNAME=${MQTT_USERNAME:-}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-}
+      - MQTT_CLIENT_ID=${MQTT_CLIENT_ID:-publish-gateway-001}
+      - MQTT_TENANT_ID=${MQTT_TENANT_ID:-default}
+      - MQTT_SITE_ID=${MQTT_SITE_ID:-site-001}
+      - MQTT_RECONNECT_INTERVAL_MS=${MQTT_RECONNECT_INTERVAL_MS:-30000}
+      - MQTT_COMMAND_DEDUP_TTL_MS=${MQTT_COMMAND_DEDUP_TTL_MS:-86400000}
+      - MQTT_DEDUP_CLEANUP_INTERVAL_MS=${MQTT_DEDUP_CLEANUP_INTERVAL_MS:-600000}
+      # VAuth 国密配置
+      - VAUTH_MOCK_MODE=false
+      - VAUTH_DEVICE_TYPE=${VAUTH_DEVICE_TYPE}
+      - VAUTH_PASSWORD=${VAUTH_PASSWORD}
+      - VAUTH_AUTH_ID=${VAUTH_AUTH_ID}
+      - VAUTH_SERVER_ID=${VAUTH_SERVER_ID}
+      - VAUTH_UKEY_PATH=${VAUTH_UKEY_PATH:-}
+      - VAUTH_UKEY_SN=${VAUTH_UKEY_SN:-}
+      - VAUTH_UKEY_CER_SN=${VAUTH_UKEY_CER_SN:-}
+      - VAUTH_UKEY_CER_ID=${VAUTH_UKEY_CER_ID:-}
+      - SECURE_PUBLISH_ENABLED=${SECURE_PUBLISH_ENABLED:-false}
+      - SECURE_PUBLISH_TRUST_STORE_DIR=${SECURE_PUBLISH_TRUST_STORE_DIR:-/opt/publish-gateway/trust}
+      - SECURE_PUBLISH_TRUSTED_KEY_IDS=${SECURE_PUBLISH_TRUSTED_KEY_IDS:-default}
+      - SECURE_PUBLISH_DEFAULT_KEY_ID=${SECURE_PUBLISH_DEFAULT_KEY_ID:-default}
+      - SECURE_PUBLISH_VERIFIER_PUBLIC_KEY_PATH=${SECURE_PUBLISH_VERIFIER_PUBLIC_KEY_PATH:-}
+    volumes:
+      # SDK 动态库目录（libvauthsdk.so 及依赖库）
+      - ./lib:/app/lib
+      # 证书目录（签名证书 .cer 文件）
+      - ./certs:/app/certs
+      # Sigma Play 安全包验签公钥目录
+      - ./trust:/opt/publish-gateway/trust:ro
+      # Sigma Play 安全包拒绝记录目录
+      - ./secure-publish/rejected:/opt/publish-gateway/secure-publish/rejected
+      # 外部化配置（覆盖 JAR 内的 application.yml，设置 mock-mode: false 等生产参数）
+      - ./config:/app/config
+      # USB UKey 设备（Linux 通过 /dev/bus/usb 识别 UKey 硬件）
+      - /dev/bus/usb:/dev/bus/usb
+      # 日志目录
+      - ./logs:/app/logs
+    depends_on:
+      publish-gateway-redis:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"

@@ -1,0 +1,413 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.monitorplatform</groupId>
+    <artifactId>monitor-platform</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+
+    <name>monitor-platform</name>
+    <description>monitor-platform parent project</description>
+
+    <!-- 配置阿里云 Maven 镜像（使用 HTTPS） -->
+    <repositories>
+        <repository>
+            <id>aliyun-central</id>
+            <name>aliyun central</name>
+            <url>https://maven.aliyun.com/repository/central</url>
+        </repository>
+        <repository>
+            <id>aliyun-public</id>
+            <name>aliyun public</name>
+            <url>https://maven.aliyun.com/repository/public</url>
+        </repository>
+        <repository>
+            <id>aliyun-spring</id>
+            <name>aliyun spring</name>
+            <url>https://maven.aliyun.com/repository/spring</url>
+        </repository>
+    </repositories>
+
+    <pluginRepositories>
+        <pluginRepository>
+            <id>aliyun-plugin</id>
+            <name>aliyun plugin</name>
+            <url>https://maven.aliyun.com/repository/public</url>
+        </pluginRepository>
+    </pluginRepositories>
+
+    <!-- 子模块 -->
+    <modules>
+        <module>monitor-platform-device</module>
+        <module>monitor-platform-forward</module>
+        <module>monitor-platform-content</module>
+        <module>monitor-platform-Ukey</module>
+        <module>monitor-platform-alarm</module>
+        <module>monitor-platform-rule</module>
+        <module>monitor-platform-common</module>
+        <module>monitor-platform-log</module>
+        <module>monitor-platform-websocket</module>
+        <module>monitor-platform-gateway</module>
+        <module>monitor-platform-role</module>
+        <module>monitor-platform-provider</module>
+        <module>monitor-platform-registry-client</module>
+        <module>monitor-platform-registry-server</module>
+        <module>monitor-platform-register-service</module>
+        <module>monitor-platform-monolith</module>
+        <module>monitor-platform-mqtt-core</module>
+    </modules>
+
+    <!-- 统一管理版本号 -->
+    <properties>
+        <java.version>1.8</java.version>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <spring-boot.version>2.7.18</spring-boot.version>
+        <spring-cloud.version>2021.0.8</spring-cloud.version>
+        <spring-cloud-alibaba.version>2021.0.5.0</spring-cloud-alibaba.version>
+
+        <!-- 推荐升级为 8.x -->
+        <mysql.version>8.0.33</mysql.version>
+
+        <mybatis-plus.version>3.5.3.1</mybatis-plus.version>
+        <lombok.version>1.18.30</lombok.version>
+        <hutool.version>5.8.23</hutool.version>
+        <fastjson.version>2.0.43</fastjson.version>
+        <jjwt.version>0.11.5</jjwt.version>
+        <minio.version>8.5.9</minio.version>
+        <knife4j-dependencies.version>2.0.2</knife4j-dependencies.version>
+        <liquibase.version>4.20.0</liquibase.version>
+        <snakeyaml.version>1.33</snakeyaml.version>
+        <paho.version>1.2.5</paho.version>
+    </properties>
+
+    <!-- 依赖管理 -->
+    <dependencyManagement>
+        <dependencies>
+
+            <!-- Spring Boot -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Spring Cloud -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Spring Cloud Alibaba -->
+            <dependency>
+                <groupId>com.alibaba.cloud</groupId>
+                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+                <version>${spring-cloud-alibaba.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Knife4j -->
+            <dependency>
+                <groupId>com.github.xiaoymin</groupId>
+                <artifactId>knife4j-dependencies</artifactId>
+                <version>${knife4j-dependencies.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- MySQL 驱动 -->
+            <dependency>
+                <groupId>mysql</groupId>
+                <artifactId>mysql-connector-java</artifactId>
+                <version>${mysql.version}</version>
+            </dependency>
+
+            <!-- MyBatis Plus -->
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-boot-starter</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <!-- Lombok -->
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
+
+            <!-- Hutool 工具类 -->
+            <dependency>
+                <groupId>cn.hutool</groupId>
+                <artifactId>hutool-all</artifactId>
+                <version>${hutool.version}</version>
+            </dependency>
+
+            <!-- FastJson -->
+            <dependency>
+                <groupId>com.alibaba.fastjson2</groupId>
+                <artifactId>fastjson2</artifactId>
+                <version>${fastjson.version}</version>
+            </dependency>
+
+            <!-- JJWT -->
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-impl</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-jackson</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+
+            <!-- RabbitMQ -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-amqp</artifactId>
+            </dependency>
+
+            <!-- Minio -->
+            <dependency>
+                <groupId>io.minio</groupId>
+                <artifactId>minio</artifactId>
+                <version>${minio.version}</version>
+            </dependency>
+
+            <!-- Liquibase 数据库版本管理 -->
+            <dependency>
+                <groupId>org.liquibase</groupId>
+                <artifactId>liquibase-core</artifactId>
+                <version>${liquibase.version}</version>
+            </dependency>
+
+            <!-- SnakeYaml -->
+            <dependency>
+                <groupId>org.yaml</groupId>
+                <artifactId>snakeyaml</artifactId>
+                <version>${snakeyaml.version}</version>
+            </dependency>
+
+            <!-- 公共模块 -->
+            <dependency>
+                <groupId>com.monitorplatform</groupId>
+                <artifactId>monitor-platform-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- Eclipse Paho MQTT v3 客户端 -->
+            <dependency>
+                <groupId>org.eclipse.paho</groupId>
+                <artifactId>org.eclipse.paho.client.mqttv3</artifactId>
+                <version>${paho.version}</version>
+            </dependency>
+
+            <!-- MQTT 公共协议模块 -->
+            <dependency>
+                <groupId>com.monitorplatform</groupId>
+                <artifactId>monitor-platform-mqtt-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+
+    <!-- 公共依赖 -->
+    <dependencies>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- 显式声明使用 Logback 日志实现 -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-simple</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-bootstrap</artifactId>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+
+        <pluginManagement>
+
+            <plugins>
+
+                <!-- Spring Boot 插件 -->
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>${spring-boot.version}</version>
+
+                    <configuration>
+                        <finalName>${project.build.finalName}</finalName>
+                    </configuration>
+
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>repackage</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+
+                <!-- Build Helper 插件 -->
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>build-helper-maven-plugin</artifactId>
+
+                    <executions>
+                        <execution>
+                            <id>timestamp-property</id>
+
+                            <goals>
+                                <goal>timestamp-property</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+
+                    <configuration>
+                        <name>build.time</name>
+                        <pattern>YYMMddHHmmss</pattern>
+                        <timeZone>GMT+8</timeZone>
+                    </configuration>
+                </plugin>
+
+                <!-- Docker Maven 插件 -->
+                <plugin>
+                    <groupId>com.spotify</groupId>
+                    <artifactId>docker-maven-plugin</artifactId>
+                    <version>1.0.0</version>
+
+                    <configuration>
+
+                        <serverId>docker-registry</serverId>
+
+                        <!-- Docker 镜像名称 -->
+                        <imageName>${project.artifactId}</imageName>
+
+                        <!-- 指定标签 -->
+                        <imageTags>
+                            <imageTag>${project.version}</imageTag>
+                            <imageTag>latest</imageTag>
+                        </imageTags>
+
+                        <!-- Dockerfile 所在目录 -->
+                        <dockerDirectory>${project.basedir}</dockerDirectory>
+
+                        <!-- 指定远程 Docker 地址 -->
+                        <dockerHost>http://192.168.1.25:2375</dockerHost>
+
+                        <!-- 复制 jar 包到 Docker 容器 -->
+                        <resources>
+
+                            <resource>
+
+                                <targetPath>/root</targetPath>
+
+                                <!-- jar 包所在目录 -->
+                                <directory>${project.build.directory}</directory>
+
+                                <!-- 需要复制的 jar -->
+                                <include>${project.build.finalName}.jar</include>
+
+                            </resource>
+
+                        </resources>
+
+                    </configuration>
+
+                    <!-- 插件执行阶段 -->
+                    <executions>
+
+                        <execution>
+
+                            <id>build-image</id>
+
+                            <!--
+                            执行 mvn install 时自动构建 Docker 镜像
+                            -->
+
+                            <phase>install</phase>
+
+                            <goals>
+                                <goal>build</goal>
+                            </goals>
+
+                        </execution>
+
+                    </executions>
+
+                </plugin>
+
+            </plugins>
+
+        </pluginManagement>
+
+        <plugins>
+
+            <!-- Maven 编译插件 -->
+            <plugin>
+
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+
+                <configuration>
+
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+
+                </configuration>
+
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+</project>

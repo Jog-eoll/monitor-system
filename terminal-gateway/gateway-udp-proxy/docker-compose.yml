@@ -1,0 +1,84 @@
+services:
+  # MySQL 数据库（host 网络模式，与 terminal-gateway 共享宿主机网络栈）
+  terminal-gateway-mysql:
+    image: mysql:5.7
+    container_name: terminal-gateway-mysql
+    network_mode: host
+    environment:
+      - TZ=Asia/Shanghai
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=terminal_gateway
+      - MYSQL_USER=${DB_USERNAME}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    volumes:
+      # 数据持久化
+      - /opt/terminal-gateway/mysql/data:/var/lib/mysql
+      # 初始化 SQL 脚本（首次启动自动执行）
+      - /opt/terminal-gateway/mysql/init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  terminal-gateway:
+    image: gateway-udp-proxy:1.0
+    container_name: gateway-udp-proxy
+    # host 网络模式：
+    # 1. 直接监听宿主机 UDP 端口，无需逐一映射
+    # 2. USB UKey 设备通过宿主机 /dev/bus/usb 访问（配合 volumes 挂载）
+    network_mode: host
+    # privileged 模式：允许容器内进程访问 USB 设备（UKey 硬件必须）
+    privileged: true
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
+      - JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8
+      - LD_LIBRARY_PATH=/app/lib
+      # 数据库配置
+      - DB_HOST=${DB_HOST:-127.0.0.1}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      # VAuth 国密配置
+      - VAUTH_MOCK_MODE=false
+      - VAUTH_PASSWORD=${VAUTH_PASSWORD}
+      - VAUTH_AUTH_ID=${VAUTH_AUTH_ID}
+      - VAUTH_SERVER_ID=${VAUTH_SERVER_ID}
+      # 管控平台地址
+      - MONITOR_HOST=${MONITOR_HOST}
+      - MONITOR_UKEY_PORT=${MONITOR_UKEY_PORT:-8080}
+      - MONITOR_DEVICE_PORT=${MONITOR_DEVICE_PORT:-8080}
+      - MONITOR_CONTENT_PORT=${MONITOR_CONTENT_PORT:-8080}
+      - PROVIDER_JMDNS_ENABLED=${PROVIDER_JMDNS_ENABLED:-true}
+      - PROVIDER_JMDNS_BIND_ADDRESS=${PROVIDER_JMDNS_BIND_ADDRESS:-}
+      - PROVIDER_JMDNS_ADVERTISE_HOST=${PROVIDER_JMDNS_ADVERTISE_HOST:-}
+    volumes:
+      # SDK 动态库目录（libvauthsdk.so 及依赖库）
+      - /opt/terminal-gateway/lib:/app/lib
+      # 证书目录（签名证书 .cer 文件）
+      - /opt/terminal-gateway/certs:/app/certs
+      # 外部化配置（覆盖 JAR 内的 application.yml，设置 mock-mode: false 等生产参数）
+      - /opt/terminal-gateway/config:/app/config
+      # USB UKey 设备挂载（Linux 通过 /dev/bus/usb 识别 UKey 硬件）
+      - /dev/bus/usb:/dev/bus/usb
+      # 日志目录
+      - /opt/terminal-gateway/logs:/app/logs
+    depends_on:
+      terminal-gateway-mysql:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"

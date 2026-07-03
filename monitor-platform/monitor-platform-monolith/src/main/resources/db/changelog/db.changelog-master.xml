@@ -1,0 +1,130 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        logicalFilePath="monitor-platform-monolith/db.changelog-master.xml"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- ==================== Device 模块 ==================== -->
+    <include file="db/changelog/changes/device-001-create-unified-device-info-table.xml"/>
+    <include file="db/changelog/changes/device-002-create-camera-info-table.xml"/>
+    <include file="db/changelog/changes/device-003-create-terminal-app-info-table.xml"/>
+    <include file="db/changelog/changes/device-004-create-video-stream-info-table.xml"/>
+    <include file="db/changelog/changes/device-005-add-unified-device-extended-columns.xml"/>
+
+    <!-- ==================== Alarm 模块 ==================== -->
+    <include file="db/changelog/changes/alarm-001-create-alarm-record-table.xml"/>
+
+    <!-- ==================== Content 模块 ==================== -->
+    <include file="db/changelog/changes/content-001-create-content-detection-task-table.xml"/>
+    <include file="db/changelog/changes/content-002-alter-content-monitor-table.xml"/>
+    <include file="db/changelog/changes/content-002-add-play-batch-fields.xml"/>
+
+    <!-- ==================== Forward 模块 ==================== -->
+    <include file="db/changelog/changes/forward-001-create-task-chain-config-table.xml"/>
+    <include file="db/changelog/changes/forward-002-create-task-chain-node-table.xml"/>
+    <include file="db/changelog/changes/forward-003-create-device-usage-record-table.xml"/>
+    <include file="db/changelog/changes/forward-004-create-gateway-dispatch-log-table.xml" />
+    <include file="db/changelog/changes/forward-010-create-device-mqtt-command.xml" />
+
+    <!-- ==================== Upgrade 模块 ==================== -->
+    <include file="db/changelog/changes/upgrade-001-create-remote-upgrade-tables.xml" />
+    
+    <!-- Forward 模块 - 链路健康检查字段 (原 forward master inline changeSet) -->
+    <!-- Forward module - chain health fields -->
+    <changeSet id="forward-005-add-chain-health-score" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <not>
+                <columnExists tableName="task_chain_config" columnName="health_score"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="task_chain_config">
+            <column name="health_score" type="INT"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="forward-006-add-chain-online-nodes" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <not>
+                <columnExists tableName="task_chain_config" columnName="online_nodes"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="task_chain_config">
+            <column name="online_nodes" type="INT"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="forward-007-add-chain-offline-nodes" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <not>
+                <columnExists tableName="task_chain_config" columnName="offline_nodes"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="task_chain_config">
+            <column name="offline_nodes" type="INT"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="forward-008-add-chain-error-nodes" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <not>
+                <columnExists tableName="task_chain_config" columnName="error_nodes"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="task_chain_config">
+            <column name="error_nodes" type="INT"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="forward-009-add-chain-last-health-check-time" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <not>
+                <columnExists tableName="task_chain_config" columnName="last_health_check_time"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="task_chain_config">
+            <column name="last_health_check_time" type="DATETIME"/>
+        </addColumn>
+    </changeSet>
+
+    <!-- ==================== Rule 模块 ==================== -->
+    <include file="db/changelog/changes/rule-001-create-sensitive-keyword-table.xml"/>
+    <include file="db/changelog/changes/rule-002-create-detection-rule-table.xml"/>
+    <include file="db/changelog/changes/rule-003-create-alarm-threshold-table.xml"/>
+
+    <!-- ==================== Role 模块 ==================== -->
+    <include file="db/changelog/changes/role-001-create-role-table.xml"/>
+    <include file="db/changelog/changes/role-002-create-permission-table.xml"/>
+    <include file="db/changelog/changes/role-003-create-app-user-table.xml"/>
+    <include file="db/changelog/changes/role-004-create-system-parameters-table.xml"/>
+
+    <!-- Role 模块 - 外键约束 (原 role master inline changeSet) -->
+    <changeSet id="role-004-add-app-user-role-fk" author="system">
+        <preConditions onFail="MARK_RAN" onError="MARK_RAN">
+            <and>
+                <tableExists tableName="app_user"/>
+                <tableExists tableName="role"/>
+                <not>
+                    <foreignKeyConstraintExists foreignKeyName="fk_user_role"/>
+                </not>
+            </and>
+        </preConditions>
+        <addForeignKeyConstraint baseTableName="app_user"
+                                 baseColumnNames="role_id"
+                                 constraintName="fk_user_role"
+                                 referencedTableName="role"
+                                 referencedColumnNames="id"/>
+    </changeSet>
+
+    <!-- ==================== Ukey 模块 ==================== -->
+    <include file="db/changelog/changes/ukey-001-create-ukey-certificate-table.xml"/>
+    <include file="db/changelog/changes/ukey-002-create-pin-history-table.xml"/>
+    <include file="db/changelog/changes/ukey-003-add-pin-update-time.xml"/>
+
+    <!-- ==================== Registry 模块 ==================== -->
+    <include file="db/changelog/changes/registry-001-create-service-instance-table.xml"/>
+    <include file="db/changelog/changes/registry-002-create-registry-client-config-table.xml"/>
+    <include file="db/changelog/changes/registry-003-create-gateway-deploy-tables.xml"/>
+
+</databaseChangeLog>

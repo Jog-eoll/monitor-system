@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="001" author="system">
+        
+<preConditions onFail="MARK_RAN" onError="HALT">
+            <not>
+                <tableExists tableName="unified_device_info"/>
+            </not>
+        </preConditions>
+
+<comment>创建统一设备信息表</comment><createTable tableName="unified_device_info" remarks="统一设备信息表">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="device_id" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            
+            <column name="device_name" type="VARCHAR(100)"/>
+            <column name="device_type" type="VARCHAR(50)"/>
+            <column name="ip_address" type="VARCHAR(50)"/>
+            <column name="port" type="INT"/>
+            <column name="status" type="VARCHAR(20)" defaultValue="离线"/>
+            
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="update_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"/>
+            
+            <column name="remark" type="VARCHAR(500)"/>
+        </createTable>
+        
+        <createIndex tableName="unified_device_info" indexName="idx_device_id">
+            <column name="device_id"/>
+        </createIndex>
+        
+        <createIndex tableName="unified_device_info" indexName="idx_device_type">
+            <column name="device_type"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

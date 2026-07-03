@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="004" author="system">
+        <comment>创建网关配置下发记录表</comment>
+        
+        <createTable tableName="gateway_dispatch_log" remarks="网关配置下发记录表">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="chain_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="chain_code" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="branch_code" type="VARCHAR(50)"/>
+            
+            <column name="gateway_device_id" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="gateway_ip" type="VARCHAR(50)"/>
+            
+            <column name="gateway_port" type="INT"/>
+            
+            <column name="config_version" type="INT" defaultValue="1">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="dispatch_content" type="TEXT"/>
+            
+            <column name="dispatch_status" type="INT" defaultValue="0"/>
+            
+            <column name="retry_count" type="INT" defaultValue="0"/>
+            
+            <column name="max_retry" type="INT" defaultValue="3"/>
+            
+            <column name="next_retry_time" type="DATETIME"/>
+            
+            <column name="ack_code" type="VARCHAR(50)"/>
+            
+            <column name="ack_message" type="VARCHAR(512)"/>
+            
+            <column name="dispatch_time" type="DATETIME"/>
+            
+            <column name="ack_time" type="DATETIME"/>
+            
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            
+            <column name="update_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+        
+        <createIndex tableName="gateway_dispatch_log" indexName="idx_gateway_dispatch_chain_id">
+            <column name="chain_id"/>
+        </createIndex>
+        <createIndex tableName="gateway_dispatch_log" indexName="idx_gateway_dispatch_chain_branch">
+            <column name="chain_id"/>
+            <column name="branch_code"/>
+        </createIndex>
+        <createIndex tableName="gateway_dispatch_log" indexName="idx_gateway_dispatch_gateway">
+            <column name="gateway_device_id"/>
+        </createIndex>
+        <createIndex tableName="gateway_dispatch_log" indexName="idx_gateway_dispatch_status">
+            <column name="dispatch_status"/>
+        </createIndex>
+        <createIndex tableName="gateway_dispatch_log" indexName="idx_gateway_dispatch_time">
+            <column name="dispatch_time"/>
+        </createIndex>
+        
+    </changeSet>
+
+</databaseChangeLog>

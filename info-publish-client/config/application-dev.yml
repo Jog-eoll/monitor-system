@@ -1,0 +1,46 @@
+server:
+  port: 7081
+
+client:
+  log:
+    encode:
+      enabled: true
+
+spring:
+  application:
+    name: info-publish-client
+  cloud:
+    compatibility-verifier:
+      enabled: false
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 1000MB
+
+registry:
+  client:
+    enabled: true
+    server-addr: 192.168.1.25:8069
+    api-prefix: /registry
+    register-path: /register
+    service-name: info-publish-client
+    device-type: publish_server
+    preferred-network: "192.168.1."
+    auto-register: true
+    auto-deregister: true
+    heartbeat-interval: 10000
+
+monitor-platform:
+  client-id: ""
+
+provider:
+  jmdns:
+    enabled: ${PROVIDER_JMDNS_ENABLED:true}
+    bind-address: ${PROVIDER_JMDNS_BIND_ADDRESS:}
+    advertise-host: ${PROVIDER_JMDNS_ADVERTISE_HOST:}
+
+logging:
+  level:
+    com.infopublish: INFO
+    org.apache.ibatis: WARN
+    com.zaxxer.hikari: WARN

@@ -1,0 +1,155 @@
+version: "2.4"
+
+services:
+  monitor-platform-mysql:
+    image: ${MYSQL_IMAGE:-mysql:5.7}
+    container_name: monitor-platform-mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+      - --max_allowed_packet=64M
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "${MYSQL_PORT}:3306"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  monitor-platform-redis:
+    image: ${REDIS_IMAGE:-redis:latest}
+    container_name: monitor-platform-redis
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  monitor-platform-minio:
+    image: ${MINIO_IMAGE:-minio/minio:latest}
+    container_name: monitor-platform-minio
+    command: server --console-address ":9001" /data
+    environment:
+      TZ: Asia/Shanghai
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "${MINIO_API_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
+    volumes:
+      - ./data/minio:/data
+    restart: unless-stopped
+
+  monitor-platform-minio-init:
+    image: ${MINIO_MC_IMAGE:-minio/mc:latest}
+    container_name: monitor-platform-minio-init
+    depends_on:
+      monitor-platform-minio:
+        condition: service_started
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        for i in $$(seq 1 60); do
+          if mc alias set local http://monitor-platform-minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}" >/dev/null 2>&1; then
+            break
+          fi
+          sleep 2
+        done
+        mc alias set local http://monitor-platform-minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
+        mc mb --ignore-existing "local/$${MINIO_BUCKET}"
+        if [ "$${MINIO_ACCESS_KEY}" != "$${MINIO_ROOT_USER}" ]; then
+          mc admin user add local "$${MINIO_ACCESS_KEY}" "$${MINIO_SECRET_KEY}" >/dev/null 2>&1 || true
+          mc admin policy attach local readwrite --user "$${MINIO_ACCESS_KEY}" >/dev/null 2>&1 \
+            || mc admin policy set local readwrite user="$${MINIO_ACCESS_KEY}" >/dev/null 2>&1 \
+            || true
+        fi
+    restart: "no"
+
+  monitor-platform-monolith:
+    image: ${MONOLITH_IMAGE:-monitor-platform-monolith:1.0.0}
+    container_name: monitor-platform-monolith
+    network_mode: host
+    privileged: true
+    depends_on:
+      monitor-platform-mysql:
+        condition: service_healthy
+      monitor-platform-redis:
+        condition: service_healthy
+      monitor-platform-minio:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+      LD_LIBRARY_PATH: /opt/monitor-platform-monolith/lib
+      SERVER_PORT: ${SERVER_PORT}
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: ${MYSQL_PORT}
+      MYSQL_DB: ${MYSQL_DB}
+      MYSQL_USERNAME: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB:-0}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      VAUTH_SERVER_MODE: ${VAUTH_SERVER_MODE:-ukey}
+      VAUTH_SERVER_REQUIRED: ${VAUTH_SERVER_REQUIRED:-true}
+      VAUTH_SERVER_PASSWORD: ${VAUTH_SERVER_PASSWORD}
+      VAUTH_SERVER_AUTH_ID: ${VAUTH_SERVER_AUTH_ID}
+      VAUTH_SERVER_UKEY_PATH: ${VAUTH_SERVER_UKEY_PATH:-}
+      VAUTH_SERVER_UKEY_SN: ${VAUTH_SERVER_UKEY_SN:-}
+      VAUTH_SERVER_UKEY_CER_SN: ${VAUTH_SERVER_UKEY_CER_SN:-}
+      VAUTH_SERVER_UKEY_CER_ID: ${VAUTH_SERVER_UKEY_CER_ID:-}
+      VAUTH_SERVER_LIBRARY_PATH: /opt/monitor-platform-monolith/lib
+      VAUTH_SERVER_DEPENDENCY_PATHS: /opt/monitor-platform-monolith/lib
+      UKEY_ADMIN_USERNAME: ${UKEY_ADMIN_USERNAME}
+      UKEY_ADMIN_PASSWORD: ${UKEY_ADMIN_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS:-8}
+      JAVA_OPTS: ${JAVA_OPTS:--Xms512m -Xmx1024m}
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./lib:/opt/monitor-platform-monolith/lib:ro
+      - /dev/bus/usb:/dev/bus/usb
+      - /run/udev:/run/udev:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:${SERVER_PORT}/actuator/health >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "3"

@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sigma 程序选择</title>
+    <style>
+        :root {
+            --bg: #edf2f7;
+            --panel: #ffffff;
+            --panel-strong: #f8fafc;
+            --ink: #102033;
+            --muted: #64748b;
+            --line: #d8e0ea;
+            --line-strong: #b9c7d8;
+            --blue: #1677ff;
+            --blue-dark: #0b5ed7;
+            --cyan: #0891b2;
+            --green: #16a34a;
+            --amber: #d97706;
+            --red: #dc2626;
+            --shadow: 0 18px 42px rgba(15, 23, 42, 0.12);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            background:
+                linear-gradient(180deg, rgba(10, 38, 71, 0.06), rgba(255, 255, 255, 0) 34%),
+                repeating-linear-gradient(90deg, rgba(15, 59, 96, 0.06) 0 1px, transparent 1px 56px),
+                repeating-linear-gradient(0deg, rgba(15, 59, 96, 0.05) 0 1px, transparent 1px 56px),
+                var(--bg);
+            color: var(--ink);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+            font-size: 14px;
+        }
+
+        body::before {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 190px;
+            pointer-events: none;
+            content: "";
+            background:
+                linear-gradient(120deg, rgba(15, 23, 42, 0.92), rgba(15, 81, 112, 0.72) 54%, rgba(22, 163, 74, 0.18)),
+                repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0 1px, transparent 1px 18px);
+            clip-path: polygon(0 0, 100% 0, 100% 68%, 0 100%);
+        }
+
+        .page {
+            position: relative;
+            width: min(1120px, calc(100vw - 36px));
+            margin: 26px auto 40px;
+        }
+
+        .panel {
+            position: relative;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid rgba(185, 199, 216, 0.9);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+        }
+
+        .panel::before {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            content: "";
+            background: linear-gradient(90deg, var(--blue), var(--cyan), var(--green));
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 22px 24px 20px;
+            color: #ffffff;
+            background:
+                linear-gradient(120deg, #101a2d, #123f5d 58%, #0f766e),
+                repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.09) 0 1px, transparent 1px 24px);
+        }
+
+        .title-block {
+            min-width: 0;
+        }
+
+        .eyebrow {
+            margin-bottom: 7px;
+            color: #8ee7ff;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0;
+            text-transform: uppercase;
+        }
+
+        .panel-title {
+            font-size: 22px;
+            font-weight: 700;
+            line-height: 1.25;
+            word-break: break-word;
+        }
+
+        .panel-subtitle {
+            margin-top: 8px;
+            color: rgba(255, 255, 255, 0.78);
+            font-size: 13px;
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+        }
+
+        .action-button {
+            display: inline-flex;
+            flex: 0 0 auto;
+            align-items: center;
+            justify-content: center;
+            min-width: 116px;
+            height: 38px;
+            padding: 0 14px;
+            border: 1px solid rgba(142, 231, 255, 0.42);
+            border-radius: 6px;
+            color: #ffffff;
+            background: rgba(22, 119, 255, 0.86);
+            box-shadow: 0 10px 24px rgba(8, 145, 178, 0.28);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 650;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        .action-button:hover {
+            background: var(--blue-dark);
+        }
+
+        .action-button:disabled {
+            cursor: not-allowed;
+            opacity: 0.62;
+        }
+
+        .action-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            color: #0f172a;
+            background: #ffffff;
+            font-size: 16px;
+            line-height: 18px;
+        }
+
+        .content {
+            padding: 20px 24px 24px;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1.15fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .status-tile {
+            min-height: 88px;
+            padding: 14px;
+            background: var(--panel-strong);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+        }
+
+        .status-tile.primary {
+            background:
+                linear-gradient(135deg, rgba(22, 119, 255, 0.1), rgba(8, 145, 178, 0.08)),
+                #f8fbff;
+            border-color: rgba(22, 119, 255, 0.26);
+        }
+
+        .status-tile.hidden {
+            display: none;
+        }
+
+        .tile-label {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 650;
+        }
+
+        .tile-value {
+            margin-top: 9px;
+            color: #0f172a;
+            font-size: 22px;
+            font-weight: 760;
+            line-height: 1.1;
+            word-break: break-word;
+        }
+
+        .tile-note {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .state-badge {
+            display: inline-flex;
+            align-items: center;
+            min-height: 26px;
+            padding: 0 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            gap: 7px;
+        }
+
+        .state-badge::before {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            content: "";
+            background: currentColor;
+        }
+
+        .state-badge.online {
+            color: #047857;
+            background: #d1fae5;
+            border: 1px solid #86efac;
+        }
+
+        .state-badge.waiting {
+            color: #b45309;
+            background: #fef3c7;
+            border: 1px solid #fcd34d;
+        }
+
+        .state-badge.offline {
+            color: #475569;
+            background: #e2e8f0;
+            border: 1px solid #cbd5e1;
+        }
+
+        .flow-strip {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1px;
+            overflow: hidden;
+            margin-bottom: 16px;
+            background: var(--line);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+        }
+
+        .flow-step {
+            position: relative;
+            min-height: 72px;
+            padding: 13px 14px 12px 34px;
+            background: #ffffff;
+        }
+
+        .flow-step::before {
+            position: absolute;
+            top: 18px;
+            left: 14px;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            content: "";
+            background: var(--cyan);
+            box-shadow: 0 0 0 4px rgba(8, 145, 178, 0.12);
+        }
+
+        .flow-step strong {
+            display: block;
+            color: #0f172a;
+            font-size: 13px;
+            line-height: 1.25;
+        }
+
+        .flow-step span {
+            display: block;
+            margin-top: 7px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 320px;
+            gap: 16px;
+            align-items: start;
+        }
+
+        .section-block {
+            min-width: 0;
+            background: #ffffff;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .section-title {
+            color: #0f172a;
+            font-size: 15px;
+            font-weight: 720;
+        }
+
+        .section-meta {
+            color: var(--muted);
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .candidate-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 132px;
+            padding: 14px;
+        }
+
+        .candidate {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto auto;
+            gap: 12px;
+            align-items: center;
+            padding: 13px 14px;
+            background: #fbfdff;
+            border: 1px solid #dbe5ef;
+            border-radius: 8px;
+        }
+
+        .candidate.legal {
+            background:
+                linear-gradient(90deg, rgba(22, 163, 74, 0.1), rgba(255, 255, 255, 0)),
+                #fbfffd;
+            border-color: #86efac;
+        }
+
+        .candidate.invalid {
+            background:
+                linear-gradient(90deg, rgba(220, 38, 38, 0.08), rgba(255, 255, 255, 0)),
+                #fffafa;
+            border-color: #fecaca;
+        }
+
+        .file-block {
+            min-width: 0;
+        }
+
+        .file-name {
+            overflow: hidden;
+            color: #111827;
+            font-weight: 700;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .file-hint {
+            margin-top: 5px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .status {
+            min-width: 76px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .status.legal {
+            color: #166534;
+            background: #dcfce7;
+            border: 1px solid #86efac;
+        }
+
+        .status.invalid {
+            color: #991b1b;
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+        }
+
+        .button {
+            min-width: 98px;
+            height: 34px;
+            padding: 0 14px;
+            border: 0;
+            border-radius: 6px;
+            color: #ffffff;
+            background: var(--blue);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 650;
+            white-space: nowrap;
+        }
+
+        .button:hover {
+            background: var(--blue-dark);
+        }
+
+        .button:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .empty {
+            display: grid;
+            place-items: center;
+            min-height: 132px;
+            padding: 26px 16px;
+            color: var(--muted);
+            text-align: center;
+            background:
+                linear-gradient(135deg, rgba(22, 119, 255, 0.05), rgba(22, 163, 74, 0.04)),
+                repeating-linear-gradient(90deg, rgba(15, 59, 96, 0.06) 0 1px, transparent 1px 22px),
+                #fbfdff;
+            border: 1px dashed #b9c7d8;
+            border-radius: 8px;
+        }
+
+        .empty strong {
+            display: block;
+            margin-bottom: 7px;
+            color: #0f172a;
+            font-size: 15px;
+        }
+
+        .side-stack {
+            display: grid;
+            gap: 12px;
+        }
+
+        .info-block {
+            padding: 14px;
+            background: #ffffff;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+        }
+
+        .info-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
+            color: #0f172a;
+            font-size: 14px;
+            font-weight: 720;
+        }
+
+        .mini-chip {
+            display: inline-flex;
+            align-items: center;
+            min-height: 22px;
+            padding: 0 8px;
+            color: #0f766e;
+            background: #ccfbf1;
+            border: 1px solid #99f6e4;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .kv-list {
+            display: grid;
+            gap: 9px;
+        }
+
+        .kv-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .kv-row strong {
+            color: #0f172a;
+            font-weight: 700;
+            text-align: right;
+            word-break: break-word;
+        }
+
+        .check-list {
+            display: grid;
+            gap: 10px;
+            list-style: none;
+        }
+
+        .check-list li {
+            position: relative;
+            padding-left: 18px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .check-list li::before {
+            position: absolute;
+            top: 6px;
+            left: 0;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            content: "";
+            background: var(--cyan);
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            display: none;
+            max-width: min(520px, calc(100vw - 40px));
+            padding: 11px 14px;
+            color: #ffffff;
+            font-size: 13px;
+            line-height: 1.45;
+            word-break: break-word;
+            border-radius: 6px;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+        }
+
+        .toast.success {
+            background: #16a34a;
+        }
+
+        .toast.error {
+            background: #dc2626;
+        }
+
+        @media (max-width: 920px) {
+            .status-grid,
+            .workspace-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .flow-strip {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 680px) {
+            body {
+                overflow-x: hidden;
+            }
+
+            .page {
+                width: calc(100vw - 20px);
+                margin: 10px auto 24px;
+            }
+
+            .panel-header {
+                align-items: stretch;
+                flex-direction: column;
+                padding: 18px;
+            }
+
+            .action-button {
+                width: 100%;
+            }
+
+            .content {
+                padding: 14px;
+            }
+
+            .panel-title {
+                font-size: 21px;
+            }
+
+            .status-grid,
+            .flow-strip {
+                grid-template-columns: 1fr;
+            }
+
+            .candidate {
+                grid-template-columns: 1fr;
+                align-items: stretch;
+            }
+
+            .status,
+            .button {
+                width: 100%;
+            }
+
+            .section-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .section-meta {
+                white-space: normal;
+            }
+        }
+    </style>
+</head>
+<body>
+<main class="page">
+    <section class="panel" id="processSelectorCard">
+        <header class="panel-header">
+            <div class="title-block">
+                <div class="eyebrow">PROCESS GUARD</div>
+                <h1 class="panel-title">Sigma 程序选择</h1>
+                <p class="panel-subtitle">完成 UKey 认证后，选择受控的 Sigma Play.exe，并由客户端完成校验、启动与 PID 绑定。</p>
+            </div>
+            <button class="action-button" id="pickButton" type="button" title="添加 Sigma 程序" aria-label="添加 Sigma 程序" onclick="pickProcessCandidate()">
+                <span class="action-icon">+</span>
+                <span>添加程序</span>
+            </button>
+        </header>
+
+        <div class="content">
+            <section class="status-grid" aria-label="进程绑定状态">
+                <div class="status-tile primary">
+                    <div class="tile-label">当前流程</div>
+                    <div class="tile-value">
+                        <span class="state-badge offline" id="processStateBadge">读取中</span>
+                    </div>
+                    <div class="tile-note" id="processStateNote">正在读取客户端状态</div>
+                </div>
+                <div class="status-tile hidden" aria-hidden="true">
+                    <div class="tile-label">授权 PID</div>
+                    <div class="tile-value" id="authorizedPidValue">-</div>
+                    <div class="tile-note" id="bindingNote">未绑定</div>
+                </div>
+                <div class="status-tile hidden" aria-hidden="true">
+                    <div class="tile-label">白名单端点</div>
+                    <div class="tile-value" id="endpointCountValue">-</div>
+                    <div class="tile-note">来源校验使用</div>
+                </div>
+                <div class="status-tile">
+                    <div class="tile-label">候选程序</div>
+                    <div class="tile-value" id="candidateCountValue">-</div>
+                    <div class="tile-note" id="candidateSummary">等待扫描</div>
+                </div>
+            </section>
+
+            <section class="flow-strip" aria-label="绑定流程">
+                <div class="flow-step">
+                    <strong>UKey 认证</strong>
+                    <span>认证成功后进入程序选择流程</span>
+                </div>
+                <div class="flow-step">
+                    <strong>程序校验</strong>
+                    <span>后端校验文件</span>
+                </div>
+                <div class="flow-step">
+                    <strong>PID 绑定</strong>
+                    <span>启动或绑定合法进程</span>
+                </div>
+                <div class="flow-step">
+                    <strong>来源放行</strong>
+                    <span>刷新本机合法来源白名单</span>
+                </div>
+            </section>
+
+            <div class="workspace-grid">
+                <section class="section-block">
+                    <header class="section-header">
+                        <h2 class="section-title">待处理候选</h2>
+                        <span class="section-meta" id="lastRefreshTime">尚未刷新</span>
+                    </header>
+                    <div class="candidate-list" id="processCandidateList">
+                        <div class="empty">
+                            <div>
+                                <strong>等待添加 Sigma Play.exe</strong>
+                                <span>通过右上角添加入口选择程序后，候选项会在这里显示。</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <aside class="side-stack" aria-label="辅助信息">
+                    <section class="info-block">
+                        <div class="info-title">
+                            <span>运行态</span>
+                            <span class="mini-chip" id="pendingChip">读取中</span>
+                        </div>
+                        <div class="kv-list">
+                            <div class="kv-row">
+                                <span>选择流程</span>
+                                <strong id="pendingStateValue">-</strong>
+                            </div>
+                            <div class="kv-row">
+                                <span>绑定结果</span>
+                                <strong id="boundStateValue">-</strong>
+                            </div>
+                            <div class="kv-row">
+                                <span>刷新时间</span>
+                                <strong id="sideRefreshTime">-</strong>
+                            </div>
+                        </div>
+                    </section>
+
+                </aside>
+            </div>
+        </div>
+    </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    let processCandidatesCache = [];
+    let processStatusCache = {};
+    let picking = false;
+
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function showToast(message, type) {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = 'toast ' + (type || 'success');
+        toast.style.display = 'block';
+        window.clearTimeout(showToast.timer);
+        showToast.timer = window.setTimeout(() => {
+            toast.style.display = 'none';
+        }, 3200);
+    }
+
+    async function api(method, path, body) {
+        const options = {
+            method,
+            headers: { 'Content-Type': 'application/json' }
+        };
+        if (body) {
+            options.body = JSON.stringify(body);
+        }
+        const response = await fetch(path, options);
+        return response.json();
+    }
+
+    function isLegalCandidate(candidate) {
+        return !!candidate && candidate.valid === true;
+    }
+
+    function formatRefreshTime() {
+        const now = new Date();
+        return now.toLocaleTimeString('zh-CN', {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    }
+
+    function updateRefreshTime() {
+        const time = formatRefreshTime();
+        document.getElementById('lastRefreshTime').textContent = '最近刷新 ' + time;
+        document.getElementById('sideRefreshTime').textContent = time;
+    }
+
+    function renderProcessStatus() {
+        const bound = processStatusCache.bound === true;
+        const pending = processStatusCache.processSelectionPending === true;
+        const authorizedPid = processStatusCache.authorizedPid;
+        const endpointCount = processStatusCache.endpointCount;
+        const badge = document.getElementById('processStateBadge');
+        const note = document.getElementById('processStateNote');
+
+        badge.className = 'state-badge ' + (bound ? 'online' : (pending ? 'waiting' : 'offline'));
+        badge.textContent = bound ? '已绑定' : (pending ? '等待选择' : '未绑定');
+        note.textContent = bound ? 'Sigma 进程已完成授权绑定' : (pending ? '请选择并启动合法程序' : '当前没有完成 PID 绑定');
+
+        document.getElementById('authorizedPidValue').textContent = authorizedPid > 0 ? authorizedPid : '-';
+        document.getElementById('bindingNote').textContent = bound ? '已授权' : '未绑定';
+        document.getElementById('endpointCountValue').textContent = endpointCount == null ? '-' : endpointCount;
+        document.getElementById('pendingChip').textContent = pending ? '待选择' : (bound ? '已完成' : '空闲');
+        document.getElementById('pendingStateValue').textContent = pending ? '等待人工选择' : '未等待选择';
+        document.getElementById('boundStateValue').textContent = bound ? '已绑定 PID ' + authorizedPid : '未绑定';
+    }
+
+    function renderCandidateSummary(candidates) {
+        const legalCount = candidates.filter(isLegalCandidate).length;
+        document.getElementById('candidateCountValue').textContent = candidates.length;
+        document.getElementById('candidateSummary').textContent = candidates.length === 0
+            ? '暂无候选'
+            : ('校验通过 ' + legalCount + ' 个');
+    }
+
+    function formatTimestamp(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number) || number <= 0) {
+            return '-';
+        }
+        return new Date(number).toLocaleString('zh-CN', { hour12: false });
+    }
+
+    async function loadProcessStatus(options) {
+        const silent = options && options.silent === true;
+        try {
+            const result = await api('GET', '/security/process/status');
+            if (result.code !== 200 || !result.data) {
+                processStatusCache = {};
+                renderProcessStatus();
+                if (!silent) {
+                    showToast(result.message || '绑定状态读取失败', 'error');
+                }
+                return;
+            }
+
+            processStatusCache = result.data;
+            renderProcessStatus();
+            updateRefreshTime();
+        } catch (error) {
+            processStatusCache = {};
+            renderProcessStatus();
+            if (!silent) {
+                showToast('绑定状态读取失败：' + error.message, 'error');
+            }
+        }
+    }
+
+    async function loadProcessCandidates(options) {
+        const list = document.getElementById('processCandidateList');
+        const silent = options && options.silent === true;
+
+        try {
+            const result = await api('GET', '/security/process/candidates');
+            if (result.code !== 200 || !result.data) {
+                processCandidatesCache = [];
+                renderCandidateSummary(processCandidatesCache);
+                list.innerHTML = renderEmptyState('候选列表读取失败', '请确认客户端服务处于运行状态。');
+                if (!silent) {
+                    showToast(result.message || '候选列表读取失败', 'error');
+                }
+                return;
+            }
+
+            const candidates = result.data.candidates || [];
+            processCandidatesCache = candidates;
+            renderCandidateSummary(candidates);
+            updateRefreshTime();
+
+            if (candidates.length === 0) {
+                list.innerHTML = renderEmptyState('等待添加 Sigma Play.exe', '通过右上角添加入口选择程序后，候选项会在这里显示。');
+                return;
+            }
+
+            list.innerHTML = candidates.map(renderProcessCandidate).join('');
+        } catch (error) {
+            processCandidatesCache = [];
+            renderCandidateSummary(processCandidatesCache);
+            list.innerHTML = renderEmptyState('候选列表读取失败', '请确认客户端服务处于运行状态。');
+            if (!silent) {
+                showToast('候选列表读取失败：' + error.message, 'error');
+            }
+        }
+    }
+
+    function renderEmptyState(title, message) {
+        return `
+            <div class="empty">
+                <div>
+                    <strong>${escapeHtml(title)}</strong>
+                    <span>${escapeHtml(message)}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    function setPickButtonLoading(loading) {
+        const button = document.getElementById('pickButton');
+        button.disabled = loading;
+        button.innerHTML = loading
+            ? '<span class="action-icon">...</span><span>打开中</span>'
+            : '<span class="action-icon">+</span><span>添加程序</span>';
+    }
+
+    async function pickProcessCandidate() {
+        if (picking) {
+            return;
+        }
+
+        const beforeCount = processCandidatesCache.length;
+        picking = true;
+        setPickButtonLoading(true);
+
+        try {
+            const result = await api('POST', '/security/process/pick-candidate');
+            const message = (result.data && result.data.message) || result.message || '已打开选择窗口';
+            showToast(message, result.code === 200 ? 'success' : 'error');
+            if (result.code === 200) {
+                await pollProcessCandidates(beforeCount);
+            } else {
+                await refreshDashboard({ silent: true });
+            }
+        } catch (error) {
+            showToast('打开选择窗口失败：' + error.message, 'error');
+        } finally {
+            picking = false;
+            setPickButtonLoading(false);
+        }
+    }
+
+    async function pollProcessCandidates(beforeCount) {
+        const maxAttempts = 120;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            await new Promise(resolve => window.setTimeout(resolve, 1000));
+            await refreshDashboard({ silent: true });
+            if (processCandidatesCache.length > beforeCount) {
+                return;
+            }
+        }
+        showToast('未检测到新增 Sigma 程序，请确认是否已完成选择', 'error');
+    }
+
+    function renderProcessCandidate(candidate, index) {
+        const legal = isLegalCandidate(candidate);
+        return `
+            <article class="candidate ${legal ? 'legal' : 'invalid'}">
+                <div class="file-block">
+                    <div class="file-name">${escapeHtml(candidate.fileName || 'Sigma Play.exe')}</div>
+                    <div class="file-hint">候选 ID 已由后端记录，启动前会再次校验</div>
+                </div>
+                <span class="status ${legal ? 'legal' : 'invalid'}">${legal ? '校验通过' : '校验未通过'}</span>
+                <button class="button" type="button" onclick="selectProcessCandidate(${index})">启动并绑定</button>
+            </article>
+        `;
+    }
+
+    async function selectProcessCandidate(index) {
+        const candidate = processCandidatesCache[index];
+        if (!candidate || !candidate.candidateId) {
+            showToast('未找到可选择的 Sigma 程序', 'error');
+            return;
+        }
+
+        try {
+            const result = await api('POST', '/security/process/select-and-start', {
+                candidateId: candidate.candidateId
+            });
+            const message = (result.data && result.data.message) || result.message || (result.code === 200 ? '操作成功' : '操作失败');
+            showToast(message, result.code === 200 ? 'success' : 'error');
+            await refreshDashboard({ silent: true });
+        } catch (error) {
+            showToast('请求失败：' + error.message, 'error');
+        }
+    }
+
+    async function refreshDashboard(options) {
+        await Promise.all([
+            loadProcessStatus(options),
+            loadProcessCandidates(options)
+        ]);
+    }
+
+    refreshDashboard();
+</script>
+</body>
+</html>

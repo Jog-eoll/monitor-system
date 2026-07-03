@@ -1,0 +1,1 @@
+const l={xs:{threshold:12,fallback:24},sm:{threshold:12,fallback:12},md:{threshold:8,fallback:8},lg:null,xl:null};function a(a,s,t){const c=null!=a?a:s,h=l[t];return h?c>=h.threshold?c:h.fallback:c}export{a as c};

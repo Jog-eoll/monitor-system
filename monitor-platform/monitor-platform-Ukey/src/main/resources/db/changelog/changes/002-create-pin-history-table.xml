@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="002" author="system">
+        <comment>创建PIN码历史记录表</comment>
+        
+        <createTable tableName="pin_history" remarks="PIN码历史记录表">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="cert_serial_no" type="VARCHAR(128)" remarks="关联的证书序列号">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="pin_hash" type="VARCHAR(255)" remarks="历史PIN码哈希值">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="pin_salt" type="VARCHAR(64)" remarks="PIN码盐值"/>
+            
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+        
+        <createIndex tableName="pin_history" indexName="idx_cert_serial_no">
+            <column name="cert_serial_no"/>
+        </createIndex>
+        
+        <createIndex tableName="pin_history" indexName="idx_create_time">
+            <column name="create_time"/>
+        </createIndex>
+        
+    </changeSet>
+
+</databaseChangeLog>

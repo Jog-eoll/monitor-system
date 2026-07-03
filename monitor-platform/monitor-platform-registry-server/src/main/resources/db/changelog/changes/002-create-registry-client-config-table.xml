@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="002" author="system">
+        <comment>创建注册客户端配置表</comment>
+        
+        <createTable tableName="registry_client_config" remarks="注册客户端配置表">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="client_id" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="service_name" type="VARCHAR(100)"/>
+            <column name="config_content" type="TEXT" remarks="JSON配置内容"/>
+            <column name="config_version" type="BIGINT" defaultValue="1" remarks="配置版本"/>
+            <column name="enabled" type="BOOLEAN" defaultValue="true" remarks="启用标志"/>
+            
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="update_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"/>
+        </createTable>
+        
+        <addUniqueConstraint tableName="registry_client_config" columnNames="client_id" constraintName="uk_client_config_client_id"/>
+        
+        <createIndex tableName="registry_client_config" indexName="idx_client_config_service_name">
+            <column name="service_name"/>
+        </createIndex>
+        
+        <createIndex tableName="registry_client_config" indexName="idx_client_config_enabled">
+            <column name="enabled"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

@@ -1,0 +1,119 @@
+server:
+  port: 8092
+  
+spring:
+  application:
+    name: gateway-udp-proxy
+  
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/udp_proxy_gateway?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  
+  # Jackson配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+
+  # Redis 缓存配置
+  redis:
+    host: ${REDIS_HOST:127.0.0.1}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    database: ${REDIS_DATABASE:2}
+
+# MyBatis Plus配置
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# 管控平台配置
+monitor:
+  platform:
+    content-url: http://${MONITOR_HOST:127.0.0.1}:${MONITOR_CONTENT_PORT:8065}
+
+# MinIO 对象存储配置
+minio:
+  enabled: true
+  endpoint: http://${MINIO_HOST:127.0.0.1}:${MINIO_PORT:9000}
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
+  bucket-name: ${MINIO_BUCKET:monitor-content}
+  fallback-to-base64: true
+
+# VAuth 国密加解密配置
+vauth:
+  # mock-mode=true:  使用 SimpleCryptoServiceImpl（AES模拟，无需硬件，仅用于开发调试）
+  # mock-mode=false: 使用 VAuthCryptoServiceImpl（SM4国密，需SDF密码卡或UKey）《生产必须设为false》
+  mock-mode: ${VAUTH_MOCK_MODE:false}
+  # 设备类型：sdf（SDF密码卡）或 ukey（USB UKey）
+  device-type: ${VAUTH_DEVICE_TYPE:ukey}
+  # 设备密码（SDF PIN 或 UKey PIN），必须通过环境变量注入，禁止硬编码
+  password: "${VAUTH_PASSWORD}"
+  # 本端认证ID（发布网关在认证体系中的唯一标识）
+  auth-id: "${VAUTH_AUTH_ID:44030000003330000305}"
+  ukey-path: ""
+  # 认证服务端 ID（管控平台的认证标识）
+  server-id: "${VAUTH_SERVER_ID:44010100003330003024}"
+  # 管控平台签名证书路径
+  server-cert-path: "certs/${VAUTH_SERVER_ID:44010100003330003024}_SIGN.cer"
+  # 本端 UKey 签名证书路径
+  client-cert-path: "certs/${VAUTH_AUTH_ID:44030000003330000305}_SIGN.cer"
+  # 管控平台地址（用于双向认证握手）
+  control-platform-url: "http://${MONITOR_HOST:127.0.0.1}:${MONITOR_UKEY_PORT:8063}"
+  # 加密时是否附带SM2签名
+  sign-enabled: true
+  # SVAC2 编码加密模式开关
+  # true  = 使用 VAuth_EncryptPackData（SVAC2 编码+加密，仅 Linux 可用）
+  # false = 使用 VAuth_EncryptData（国密整包加密，默认）
+  svac-mode: ${VAUTH_SVAC_MODE:false}
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.publishgateway.udpproxy: INFO
+  pattern:
+    # %d{yyyy-MM-dd HH:mm:ss.SSS, Asia/Shanghai} 指定时区
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS, Asia/Shanghai} [%thread] %-5level %logger{50} - %msg%n"
+
+
+gateway:
+  transcode:
+    enabled: false            # false=透传模式，true=转码模式
+
+client-relay:
+  enabled: ${CLIENT_RELAY_ENABLED:false}
+  relay-port: ${CLIENT_RELAY_PORT:18092}
+  trusted-client-ips: ${CLIENT_RELAY_TRUSTED_IPS:}
+  verify-signature: ${CLIENT_RELAY_VERIFY_SIGNATURE:false}
+  signature-secret: ${CLIENT_RELAY_SIGNATURE_SECRET:}
+  reject-direct-udp: ${CLIENT_RELAY_REJECT_DIRECT_UDP:false}
+
+mqtt-agent:
+  enabled: ${MQTT_AGENT_ENABLED:false}
+  broker-url: ${MQTT_BROKER_URL:ssl://127.0.0.1:8883}
+  username: ${MQTT_USERNAME:}
+  password: ${MQTT_PASSWORD:}
+  client-id: ${MQTT_CLIENT_ID:publish-gateway-001}
+  tenant-id: ${MQTT_TENANT_ID:default}
+  site-id: ${MQTT_SITE_ID:site-001}
+  device-id: ${REGISTRY_CLIENT_ID:${VAUTH_AUTH_ID:publish-gateway-001}}
+  device-type: publish_gateway
+  keep-alive-sec: 30
+  heartbeat-interval-sec: 30
+  reconnect-interval-ms: ${MQTT_RECONNECT_INTERVAL_MS:30000}
+  command-dedup-ttl-ms: ${MQTT_COMMAND_DEDUP_TTL_MS:86400000}
+  dedup-cleanup-interval-ms: ${MQTT_DEDUP_CLEANUP_INTERVAL_MS:600000}
+  qos: 1
+  clean-session: true
+  auto-reconnect: true
+
+relay-file-signature:

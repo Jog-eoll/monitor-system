@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch4jConfig>
+  <dontWrapJar>true</dontWrapJar>
+  <headerType>console</headerType>
+  <jar>info-publish-client.jar</jar>
+  <outfile>D:\project02\info-publish-client\dist\info-publish-client.exe</outfile>
+  <errTitle></errTitle>
+  <cmdLine>--spring.config.location=file:config/application.yml</cmdLine>
+  <chdir>.</chdir>
+  <priority>normal</priority>
+  <downloadUrl></downloadUrl>
+  <supportUrl></supportUrl>
+  <stayAlive>false</stayAlive>
+  <restartOnCrash>true</restartOnCrash>
+  <manifest>D:\project02\info-publish-client\requireAdmin.manifest</manifest>
+  <icon></icon>
+  <jre>
+    <path>jre</path>
+    <requiresJdk>false</requiresJdk>
+    <requires64Bit>true</requires64Bit>
+    <minVersion>8</minVersion>
+    <maxVersion>21</maxVersion>
+  </jre>
+</launch4jConfig>

@@ -1,0 +1,54 @@
+# Maven build output
+target/
+*.class
+*.jar
+*.jar.new
+*.war
+*.ear
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+.project
+.classpath
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# SVN metadata
+.svn/
+
+# AI tool configs
+.codex/
+.qoder/
+.docx_work/
+
+# Bundled tools
+.tools/
+
+# Distribution directories
+dist/
+
+# Bundled JRE (huge, should not be in git)
+**/jre/
+
+# Temp/Output directories
+tmp/
+outputs/
+deploy-standalone/
+
+# Deploy packages
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local

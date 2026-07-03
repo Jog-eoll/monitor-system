@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="002" author="system">
+        <comment>创建任务链路节点表</comment>
+        
+        <createTable tableName="task_chain_node" remarks="任务链路节点表(时序依赖树形结构)">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="chain_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="device_id" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="device_name" type="VARCHAR(100)" remarks="设备名称(冗余字段)"/>
+            
+            <column name="device_type" type="VARCHAR(50)" remarks="设备类型: publish_server/publish_gateway/terminal_encrypt_gateway/content_server/info_board">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="parent_node_id" type="BIGINT" remarks="上游节点ID(数据来源节点)"/>
+            <column name="node_order" type="INT" remarks="节点时序顺序"/>
+            <column name="branch_code" type="VARCHAR(50)" remarks="分支标识(B1/B2/B3...)"/>
+            <column name="branch_name" type="VARCHAR(100)" remarks="分支名称"/>
+            
+            <column name="node_level" type="INT" defaultValue="1" remarks="【已废弃】节点层级"/>
+            <column name="is_core" type="INT" defaultValue="1" remarks="是否核心节点: 0-可选, 1-核心"/>
+            <column name="node_status" type="VARCHAR(20)" defaultValue="离线" remarks="节点状态: 在线/离线/异常"/>
+            
+            <column name="device_ip" type="VARCHAR(50)" remarks="设备IP地址"/>
+            <column name="node_config" type="TEXT" remarks="节点配置信息(JSON格式)"/>
+            
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="update_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"/>
+            
+            <column name="remark" type="VARCHAR(500)"/>
+        </createTable>
+        
+        <addUniqueConstraint tableName="task_chain_node" columnNames="chain_id,device_id" constraintName="uk_chain_device"/>
+        
+        <createIndex tableName="task_chain_node" indexName="idx_chain_id">
+            <column name="chain_id"/>
+        </createIndex>
+        
+        <createIndex tableName="task_chain_node" indexName="idx_device_id">
+            <column name="device_id"/>
+        </createIndex>
+        
+        <createIndex tableName="task_chain_node" indexName="idx_device_type">
+            <column name="device_type"/>
+        </createIndex>
+        
+        <createIndex tableName="task_chain_node" indexName="idx_parent_node_id">
+            <column name="parent_node_id"/>
+        </createIndex>
+        
+        <createIndex tableName="task_chain_node" indexName="idx_node_order">
+            <column name="node_order"/>
+        </createIndex>
+        
+        <createIndex tableName="task_chain_node" indexName="idx_branch_code">
+            <column name="branch_code"/>
+        </createIndex>
+        
+        <createIndex tableName="task_chain_node" indexName="idx_is_core">
+            <column name="is_core"/>
+        </createIndex>
+        
+        <createIndex tableName="task_chain_node" indexName="idx_node_status">
+            <column name="node_status"/>
+        </createIndex>
+        
+    </changeSet>
+
+</databaseChangeLog>

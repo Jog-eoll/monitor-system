@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.monitorplatform.upgrade.mapper.RemoteUpgradeTaskDeviceMapper">
+
+    <resultMap id="versionRecordMap" type="java.util.LinkedHashMap">
+        <result column="version" property="version" />
+        <result column="status" property="status" />
+        <result column="package_id" property="packageId" />
+        <result column="package_name" property="packageName" />
+        <result column="task_id" property="taskId" />
+        <result column="task_name" property="taskName" />
+        <result column="package_type" property="packageType" />
+        <result column="file_size" property="fileSize" />
+        <result column="sha256" property="sha256" />
+        <result column="installed_at" property="installedAt" />
+        <result column="duration_text" property="durationText" />
+        <result column="operator" property="operator" />
+        <result column="rollback_enabled" property="rollbackable" />
+        <result column="remark" property="remark" />
+    </resultMap>
+
+    <select id="selectDeviceVersions" resultMap="versionRecordMap">
+        SELECT
+            d.target_version AS version,
+            d.status,
+            p.id AS package_id,
+            p.package_name,
+            t.id AS task_id,
+            t.task_name,
+            p.package_type,
+            p.file_size,
+            p.sha256,
+            d.finish_time AS installed_at,
+            CASE
+                WHEN d.command_time IS NOT NULL AND d.finish_time IS NOT NULL THEN
+                    CONCAT(
+                        TIMESTAMPDIFF(MINUTE, d.command_time, d.finish_time),
+                        ' 分钟'
+                    )
+                ELSE NULL
+            END AS duration_text,
+            t.operator,
+            t.rollback_enabled,
+            t.remark
+        FROM remote_upgrade_task_device d
+        JOIN remote_upgrade_task t ON d.task_id = t.id
+        JOIN remote_upgrade_package p ON t.package_id = p.id
+        WHERE d.target_device_id = #{targetDeviceId}
+          AND d.status = 'SUCCESS'
+        ORDER BY d.finish_time DESC
+    </select>
+
+    <select id="selectLatestSuccessVersion" resultMap="versionRecordMap">
+        SELECT
+            d.target_version AS version,
+            d.status,
+            p.id AS package_id,
+            p.package_name,
+            t.id AS task_id,
+            t.task_name,
+            p.package_type,
+            p.file_size,
+            p.sha256,
+            d.finish_time AS installed_at,
+            CASE
+                WHEN d.command_time IS NOT NULL AND d.finish_time IS NOT NULL THEN
+                    CONCAT(
+                        TIMESTAMPDIFF(MINUTE, d.command_time, d.finish_time),
+                        ' 分钟'
+                    )
+                ELSE NULL
+            END AS duration_text,
+            t.operator,
+            t.rollback_enabled,
+            t.remark
+        FROM remote_upgrade_task_device d
+        JOIN remote_upgrade_task t ON d.task_id = t.id
+        JOIN remote_upgrade_package p ON t.package_id = p.id
+        WHERE d.target_device_id = #{targetDeviceId}
+          AND d.status = 'SUCCESS'
+        ORDER BY d.finish_time DESC
+        LIMIT 1
+    </select>
+
+</mapper>

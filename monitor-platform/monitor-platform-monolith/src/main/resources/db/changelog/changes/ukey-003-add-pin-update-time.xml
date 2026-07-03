@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="ukey-003-add-pin-update-time" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <and>
+                <tableExists tableName="ukey_certificate"/>
+                <not>
+                    <columnExists tableName="ukey_certificate" columnName="pin_update_time"/>
+                </not>
+            </and>
+        </preConditions>
+        <addColumn tableName="ukey_certificate">
+            <column name="pin_update_time" type="DATETIME" remarks="pin update time"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

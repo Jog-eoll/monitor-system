@@ -1,0 +1,1 @@
+const n=[{kind:"encrypt_gateway",label:"加密网关",description:"发布端加密",icon:"ri:shield-keyhole-line",accent:"cyan"},{kind:"decrypt_gateway",label:"解密网关",description:"终端解密",icon:"ri:lock-unlock-line",accent:"violet"}];function e(e){var i;return null!=(i=n.find(n=>n.kind===e))?i:n[0]}export{n as R,e as g};

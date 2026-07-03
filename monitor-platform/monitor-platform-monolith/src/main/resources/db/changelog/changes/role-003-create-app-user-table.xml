@@ -1,0 +1,74 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="003" author="system">
+        
+<preConditions onFail="MARK_RAN" onError="HALT">
+            <not>
+                <tableExists tableName="app_user"/>
+            </not>
+        </preConditions>
+
+<comment>创建用户表</comment><createTable tableName="app_user" remarks="用户表">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="username" type="VARCHAR(64)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            
+            <column name="password" type="VARCHAR(128)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="role_id" type="BIGINT"/>
+            
+            <column name="role_name" type="VARCHAR(255)"/>
+            
+            <column name="description" type="VARCHAR(255)"/>
+            
+            <column name="ukey_id" type="VARCHAR(128)" remarks="UKey唯一标识"/>
+            
+            <column name="employee_no" type="VARCHAR(64)" remarks="工号"/>
+            
+            <column name="post" type="VARCHAR(64)" remarks="岗位"/>
+            
+            <column name="age" type="INT" remarks="年龄"/>
+            
+            <column name="gender" type="VARCHAR(16)" remarks="性别"/>
+            
+            <column name="avatar_url" type="VARCHAR(512)" remarks="头像URL"/>
+            
+            <column name="phone" type="VARCHAR(32)" remarks="手机号"/>
+            
+            <column name="is_allow_change" type="TINYINT" defaultValue="1">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="update_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        
+        <addUniqueConstraint tableName="app_user" columnNames="username" constraintName="uk_app_user_username"/>
+        <createIndex tableName="app_user" indexName="idx_app_user_role_id">
+            <column name="role_id"/>
+        </createIndex>
+        
+        <!-- 外键约束(可选) -->
+        <!-- <addForeignKeyConstraint baseTableName="app_user" baseColumnNames="role_id" 
+                                 constraintName="fk_app_user_role" 
+                                 referencedTableName="role" referencedColumnNames="id"/> -->
+        
+    </changeSet>
+
+</databaseChangeLog>

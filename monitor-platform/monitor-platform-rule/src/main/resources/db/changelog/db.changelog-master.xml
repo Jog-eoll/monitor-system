@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        logicalFilePath="monitor-platform-rule/db.changelog-master.xml"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="rule-001-create-sensitive-keyword" author="system">
+        <sql dbms="mysql" splitStatements="true" stripComments="true"><![CDATA[
+CREATE TABLE IF NOT EXISTS `sensitive_keyword` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `keyword` varchar(100) NOT NULL COMMENT '关键词',
+  `category` varchar(50) DEFAULT NULL COMMENT '分类',
+  `severity` varchar(20) DEFAULT 'medium' COMMENT '严重程度',
+  `status` varchar(20) DEFAULT 'enabled' COMMENT '状态',
+  `remark` varchar(255) DEFAULT NULL COMMENT '备注',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_keyword` (`keyword`),
+  KEY `idx_category` (`category`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='敏感关键词表';
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="rule-002-create-detection-rule" author="system">
+        <sql dbms="mysql" splitStatements="true" stripComments="true"><![CDATA[
+CREATE TABLE IF NOT EXISTS `detection_rule` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `rule_name` varchar(100) NOT NULL COMMENT '规则名称',
+  `rule_type` varchar(50) NOT NULL COMMENT '规则类型',
+  `rule_config` text COMMENT '规则配置(JSON格式)',
+  `priority` int(11) DEFAULT '0' COMMENT '优先级',
+  `status` varchar(20) DEFAULT 'enabled' COMMENT '状态',
+  `description` varchar(500) DEFAULT NULL COMMENT '描述',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_rule_type` (`rule_type`),
+  KEY `idx_status` (`status`),
+  KEY `idx_priority` (`priority`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='检测规则表';
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="rule-003-create-alarm-threshold" author="system">
+        <sql dbms="mysql" splitStatements="true" stripComments="true"><![CDATA[
+CREATE TABLE IF NOT EXISTS `alarm_threshold` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `threshold_name` varchar(100) NOT NULL COMMENT '阈值名称',
+  `threshold_type` varchar(50) NOT NULL COMMENT '阈值类型',
+  `threshold_config` text COMMENT '阈值配置(JSON格式)',
+  `alert_level` varchar(20) DEFAULT 'general' COMMENT '告警级别',
+  `status` varchar(20) DEFAULT 'enabled' COMMENT '状态',
+  `description` varchar(500) DEFAULT NULL COMMENT '描述',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_threshold_type` (`threshold_type`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='告警阈值配置表';
+        ]]></sql>
+    </changeSet>
+
+</databaseChangeLog>

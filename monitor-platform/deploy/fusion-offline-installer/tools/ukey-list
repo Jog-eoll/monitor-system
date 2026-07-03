@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+PYTHON_BIN=""
+for candidate in python3 python python2; do
+  if command -v "$candidate" >/dev/null 2>&1; then
+    PYTHON_BIN="$candidate"
+    break
+  fi
+done
+
+if [[ -z "$PYTHON_BIN" ]]; then
+  echo "python is required to enumerate UKey devices" >&2
+  exit 1
+fi
+
+LIB_DIRS=(
+  "$ROOT_DIR/monitor-platform/lib"
+  "$ROOT_DIR/publish-gateway/lib"
+  "$ROOT_DIR/sdk/lib"
+  "/opt/monitor-platform-monolith/lib"
+  "/opt/publish-gateway/gateway-udp-proxy/lib"
+  "/opt/publish-gateway/lib"
+)
+
+VAUTH_LIB_PATH=""
+for dir in "${LIB_DIRS[@]}"; do
+  if [[ -f "$dir/libvauthsdk.so" ]]; then
+    VAUTH_LIB_PATH="$dir/libvauthsdk.so"
+    export LD_LIBRARY_PATH="$dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    break
+  fi
+done
+
+for dir in "${LIB_DIRS[@]}"; do
+  [[ -d "$dir" ]] && export LD_LIBRARY_PATH="$dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+done
+
+export VAUTH_LIB_PATH
+
+"$PYTHON_BIN" - "$@" <<'PY'
+from __future__ import print_function
+import ctypes
+import os
+import sys
+
+
+def decode_bytes(data):
+    if not data:
+        return ""
+    for encoding in ("utf-8", "gbk", "gb18030"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
+def fail(message):
+    print(message, file=sys.stderr)
+    sys.exit(1)
+
+
+lib_path = os.environ.get("VAUTH_LIB_PATH") or "libvauthsdk.so"
+try:
+    sdk = ctypes.CDLL(lib_path, mode=getattr(ctypes, "RTLD_GLOBAL", 0))
+except OSError as exc:
+    fail("load libvauthsdk.so failed: {0}".format(exc))
+
+sdk.VAuth_Init.restype = ctypes.c_int
+sdk.VAuth_Cleanup.restype = ctypes.c_int
+sdk.VAuth_Free.argtypes = [ctypes.c_void_p]
+sdk.VAuth_Free.restype = None
+sdk.VAuth_GetLastError.restype = ctypes.c_int
+sdk.VAuth_GetErrorText.argtypes = [ctypes.c_int]
+sdk.VAuth_GetErrorText.restype = ctypes.c_void_p
+sdk.VAuth_ListUkeyInfos.argtypes = [ctypes.POINTER(ctypes.c_void_p)]
+sdk.VAuth_ListUkeyInfos.restype = ctypes.c_int
+
+
+def last_error_text():
+    code = sdk.VAuth_GetLastError()
+    ptr = sdk.VAuth_GetErrorText(code)
+    text = decode_bytes(ctypes.string_at(ptr)) if ptr else ""
+    return "{0}{1}".format(code, ": " + text if text else "")
+
+
+reply = ctypes.c_void_p()
+initialized = False
+try:
+    if not sdk.VAuth_Init():
+        fail("VAuth_Init failed: {0}".format(last_error_text()))
+    initialized = True
+
+    if not sdk.VAuth_ListUkeyInfos(ctypes.byref(reply)):
+        fail("VAuth_ListUkeyInfos failed: {0}".format(last_error_text()))
+
+    if not reply.value:
+        print("[]")
+    else:
+        text = decode_bytes(ctypes.string_at(reply.value)).strip()
+        print(text if text else "[]")
+finally:
+    if reply.value:
+        sdk.VAuth_Free(reply)
+    if initialized:
+        sdk.VAuth_Cleanup()
+PY

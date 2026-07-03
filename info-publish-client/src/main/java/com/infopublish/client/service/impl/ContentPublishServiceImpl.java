@@ -1,0 +1,364 @@
+package com.infopublish.client.service.impl;
+
+import com.alibaba.fastjson2.JSON;
+import com.infopublish.client.entity.dto.precheck.PrecheckRequest;
+import com.infopublish.client.entity.dto.precheck.PrecheckResponse;
+import com.infopublish.client.entity.dto.publish.ContentPublishRequest;
+import com.infopublish.client.entity.dto.publish.ContentPublishResponse;
+import com.infopublish.client.entity.dto.sigma.QingsongProgramResponse;
+import com.infopublish.client.entity.dto.sigma.SigmaVerifyRequest;
+import com.infopublish.client.service.ContentPublishService;
+import com.infopublish.client.service.PublishPrecheckService;
+import com.infopublish.client.service.SigmaApiClient;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import javax.annotation.Resource;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.MessageDigest;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Content publish orchestration for the Qingsong single-callback integration.
+ */
+@Slf4j
+@Service
+public class ContentPublishServiceImpl implements ContentPublishService {
+
+    @Resource
+    private SigmaApiClient sigmaApiClient;
+
+    @Resource
+    private PublishPrecheckService publishPrecheckService;
+
+    @Resource
+    private RestTemplate restTemplate;
+
+    @Value("${content-publish.gateway-url:${control-command.gateway-url:http://127.0.0.1:8092}}")
+    private String gatewayUrl;
+
+    @Value("${content-publish.download-timeout-ms:30000}")
+    private int downloadTimeoutMs;
+
+    @Value("${content-publish.max-file-size-mb:50}")
+    private int maxFileSizeMb;
+
+    private final ConcurrentHashMap<String, ContentPublishResponse> idempotentCache = new ConcurrentHashMap<>();
+
+    @Override
+    public ContentPublishResponse publish(ContentPublishRequest request) {
+        String requestId = request != null ? request.getRequestId() : null;
+        try {
+            if (request == null) {
+                return ContentPublishResponse.error(null, "INVALID_REQUEST", "请求体不能为空");
+            }
+            ContentPublishResponse cached = hasText(requestId) ? idempotentCache.get(requestId) : null;
+            if (cached != null) {
+                log.info("[内容发布] 命中幂等缓存: requestId={}, deliveryTaskId={}",
+                        requestId, cached.getDelivery() != null ? cached.getDelivery().getDeliveryTaskId() : null);
+                return cached;
+            }
+
+            String ip = resolveTargetIp(request);
+            if (!hasText(ip)) {
+                return ContentPublishResponse.rejected(requestId, "INVALID_REQUEST", "target.ip 不能为空");
+            }
+
+            log.info("[内容发布] 开始执行: requestId={}, sigmaBaseUrl={}, targetIp={}",
+                    requestId, request.getSigmaBaseUrl(), ip);
+
+            QingsongProgramResponse.ProgramData program =
+                    sigmaApiClient.getProgramByIp(request.getSigmaBaseUrl(), ip);
+            String programError = validateProgram(program, ip);
+            if (programError != null) {
+                log.warn("[内容发布] 节目单校验失败: requestId={}, reason={}", requestId, programError);
+                return ContentPublishResponse.rejected(requestId, "PROGRAM_INVALID", programError);
+            }
+
+            verifyProgramFiles(program.getItems());
+
+            PrecheckRequest precheckRequest = buildPrecheckRequest(request, program);
+            PrecheckResponse precheck = publishPrecheckService.precheck(precheckRequest);
+            if (precheck == null || !precheck.isPublishAllowed() || !hasText(precheck.getPublishPermit())) {
+                String message = precheck != null ? precheck.getMessage() : "precheck 无响应";
+                log.warn("[内容发布] precheck 未通过: requestId={}, message={}", requestId, message);
+                ContentPublishResponse response =
+                        ContentPublishResponse.rejected(requestId, "PRECHECK_FAILED", message);
+                attachProgram(response, precheck, program, true);
+                return response;
+            }
+
+            Map<String, Object> deliveryRaw = callSecureDelivery(request, precheck, program);
+            String deliveryTaskId = extractDeliveryTaskId(deliveryRaw);
+            if (!hasText(deliveryTaskId)) {
+                ContentPublishResponse response = ContentPublishResponse.error(requestId,
+                        "DELIVERY_FAILED", "加密网关未返回 deliveryTaskId");
+                attachProgram(response, precheck, program, true);
+                response.attachDelivery(null, deliveryRaw);
+                return response;
+            }
+
+            ContentPublishResponse response =
+                    ContentPublishResponse.accepted(requestId, precheck, deliveryTaskId, deliveryRaw);
+            attachProgram(response, precheck, program, true);
+            if (hasText(requestId)) {
+                idempotentCache.putIfAbsent(requestId, response);
+            }
+            log.info("[内容发布] 投递已提交: requestId={}, playlistId={}, deliveryTaskId={}",
+                    requestId, program.getPlaylistId(), deliveryTaskId);
+            return response;
+        } catch (Exception e) {
+            log.error("[内容发布] 执行异常: requestId={}, error={}", requestId, e.getMessage(), e);
+            return ContentPublishResponse.error(requestId, "PUBLISH_EXECUTE_FAILED",
+                    "内容发布执行异常: " + e.getMessage());
+        }
+    }
+
+    private PrecheckRequest buildPrecheckRequest(ContentPublishRequest request,
+                                                 QingsongProgramResponse.ProgramData program) {
+        PrecheckRequest precheckRequest = new PrecheckRequest();
+        precheckRequest.setRequestId(request.getRequestId());
+        precheckRequest.setSigmaBaseUrl(request.getSigmaBaseUrl());
+        precheckRequest.setPlaylistId(program.getPlaylistId());
+        precheckRequest.setTarget(program.getTarget());
+        precheckRequest.setItems(program.getItems());
+        precheckRequest.setOperatorId(request.getOperatorId());
+        precheckRequest.setTimeoutMs(request.getTimeoutMs());
+        return precheckRequest;
+    }
+
+    private Map<String, Object> callSecureDelivery(ContentPublishRequest request,
+                                                   PrecheckResponse precheck,
+                                                   QingsongProgramResponse.ProgramData program) {
+        String url = normalizeBaseUrl(gatewayUrl) + "/api/secure-delivery/tasks";
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("requestId", request.getRequestId());
+        body.put("sigmaPublishId", request.getRequestId());
+        body.put("publishPermit", precheck.getPublishPermit());
+        body.put("target", program.getTarget());
+
+        Map<String, Object> playlist = new LinkedHashMap<>();
+        playlist.put("playlistId", program.getPlaylistId());
+        playlist.put("digest", precheck.getPlaylistDigest());
+        body.put("playlist", playlist);
+        body.put("files", program.getItems());
+        body.put("options", buildDeliveryOptions(request.getOptions()));
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setAccept(java.util.Collections.singletonList(MediaType.APPLICATION_JSON));
+        HttpEntity<String> entity = new HttpEntity<>(JSON.toJSONString(body), headers);
+
+        log.info("[内容发布] 调用加密网关投递: requestId={}, url={}, playlistId={}, files={}",
+                request.getRequestId(), url, program.getPlaylistId(), program.getItems().size());
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+        String responseBody = response.getBody();
+        Map<String, Object> parsed = JSON.parseObject(responseBody, Map.class);
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            throw new RuntimeException("加密网关 HTTP 状态异常: " + response.getStatusCodeValue());
+        }
+        if (parsed == null) {
+            throw new RuntimeException("加密网关返回空响应");
+        }
+        String status = parsed.get("status") != null ? String.valueOf(parsed.get("status")) : null;
+        if ("FAILED".equalsIgnoreCase(status)) {
+            throw new RuntimeException("加密网关投递失败: " + parsed.get("message"));
+        }
+        return parsed;
+    }
+
+    private Map<String, Object> buildDeliveryOptions(ContentPublishRequest.Options options) {
+        Map<String, Object> deliveryOptions = new LinkedHashMap<>();
+        deliveryOptions.put("clearBeforePublish",
+                options == null || options.getClearBeforePublish() == null || options.getClearBeforePublish());
+        deliveryOptions.put("checkExistence",
+                options == null || options.getCheckExistence() == null || options.getCheckExistence());
+        if (options != null && options.getWaitForDelivery() != null) {
+            deliveryOptions.put("waitForDelivery", options.getWaitForDelivery());
+        }
+        return deliveryOptions;
+    }
+
+    private void verifyProgramFiles(List<SigmaVerifyRequest.PlaylistItem> items) throws Exception {
+        for (SigmaVerifyRequest.PlaylistItem item : items) {
+            if (!hasText(item.getFileHash())) {
+                throw new IllegalStateException("节目文件缺少 fileHash: " + item.getFileName());
+            }
+            byte[] content = download(item.getFileUrl());
+            String actualHash = sha256Hex(content);
+            if (!actualHash.equalsIgnoreCase(item.getFileHash().trim())) {
+                throw new IllegalStateException("节目文件 Hash 不匹配: " + item.getFileName()
+                        + ", expected=" + item.getFileHash() + ", actual=" + actualHash);
+            }
+            log.info("[内容发布] 节目文件校验通过: orderNo={}, fileName={}, size={}",
+                    item.getOrderNo(), item.getFileName(), content.length);
+        }
+    }
+
+    private byte[] download(String fileUrl) throws Exception {
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(fileUrl).openConnection();
+            connection.setConnectTimeout(downloadTimeoutMs);
+            connection.setReadTimeout(downloadTimeoutMs);
+            connection.setRequestMethod("GET");
+            int status = connection.getResponseCode();
+            if (status < 200 || status >= 300) {
+                throw new IllegalStateException("下载节目文件失败: url=" + fileUrl + ", status=" + status);
+            }
+            int maxBytes = Math.max(1, maxFileSizeMb) * 1024 * 1024;
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            InputStream input = connection.getInputStream();
+            try {
+                byte[] buffer = new byte[8192];
+                int total = 0;
+                int read;
+                while ((read = input.read(buffer)) != -1) {
+                    total += read;
+                    if (total > maxBytes) {
+                        throw new IllegalStateException("节目文件超过大小限制: " + fileUrl);
+                    }
+                    output.write(buffer, 0, read);
+                }
+            } finally {
+                input.close();
+            }
+            return output.toByteArray();
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private String sha256Hex(byte[] content) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(content);
+        StringBuilder sb = new StringBuilder(hash.length * 2);
+        for (byte b : hash) {
+            sb.append(String.format("%02x", b & 0xff));
+        }
+        return sb.toString();
+    }
+
+    private String validateProgram(QingsongProgramResponse.ProgramData program, String requestedIp) {
+        if (program == null) {
+            return "获取青松节目单失败";
+        }
+        if (!Boolean.TRUE.equals(program.getSuccess())) {
+            return "青松节目单 success 不为 true";
+        }
+        if (!hasText(program.getPlaylistId())) {
+            return "青松节目单 playlistId 为空";
+        }
+        if (program.getTarget() == null) {
+            return "青松节目单 target 为空";
+        }
+        if (!hasText(program.getTarget().getIp())) {
+            return "青松节目单 target.ip 为空";
+        }
+        if (!program.getTarget().getIp().trim().equals(requestedIp)) {
+            return "青松节目单 target.ip 与请求 IP 不一致";
+        }
+        if (program.getItems() == null || program.getItems().isEmpty()) {
+            return "青松节目单 items 为空";
+        }
+        for (int i = 0; i < program.getItems().size(); i++) {
+            SigmaVerifyRequest.PlaylistItem item = program.getItems().get(i);
+            if (item == null) {
+                return "青松节目单 items[" + i + "] 为空";
+            }
+            if (item.getOrderNo() == null) {
+                return "青松节目单 items[" + i + "].orderNo 为空";
+            }
+            if (!hasText(item.getFileName())) {
+                return "青松节目单 items[" + i + "].fileName 为空";
+            }
+            if (!hasText(item.getFileType())) {
+                return "青松节目单 items[" + i + "].fileType 为空";
+            }
+            if (!hasText(item.getFileUrl())) {
+                return "青松节目单 items[" + i + "].fileUrl 为空";
+            }
+            if (item.getDurationSeconds() == null || item.getDurationSeconds() <= 0) {
+                return "青松节目单 items[" + i + "].durationSeconds 无效";
+            }
+        }
+        return null;
+    }
+
+    private String extractDeliveryTaskId(Map<String, Object> deliveryRaw) {
+        if (deliveryRaw == null) {
+            return null;
+        }
+        Object value = deliveryRaw.get("deliveryTaskId");
+        if (value == null) {
+            value = deliveryRaw.get("taskId");
+        }
+        Object data = deliveryRaw.get("data");
+        if (value == null && data instanceof Map) {
+            Map<?, ?> dataMap = (Map<?, ?>) data;
+            value = dataMap.get("deliveryTaskId");
+            if (value == null) {
+                value = dataMap.get("taskId");
+            }
+        }
+        return value != null ? String.valueOf(value) : null;
+    }
+
+    private void attachProgram(ContentPublishResponse response,
+                               PrecheckResponse precheck,
+                               QingsongProgramResponse.ProgramData program,
+                               boolean filesVerified) {
+        if (program != null) {
+            response.attachProgram(precheck,
+                    program.getTarget(),
+                    program.getPlaylistId(),
+                    precheck != null ? precheck.getPlaylistDigest() : null,
+                    program.getItems(),
+                    filesVerified);
+            return;
+        }
+        response.attachProgram(precheck, null, null, null, null, filesVerified);
+    }
+
+    private String resolveTargetIp(ContentPublishRequest request) {
+        if (request == null || request.getTarget() == null) {
+            return null;
+        }
+        return trimToNull(request.getTarget().getIp());
+    }
+
+    private String normalizeBaseUrl(String baseUrl) {
+        String normalized = baseUrl == null ? "" : baseUrl.trim();
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
+    private boolean hasText(String value) {
+        return trimToNull(value) != null;
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+}

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="001" author="system">
+        <comment>创建服务实例表</comment>
+        
+        <createTable tableName="service_instance" remarks="服务实例表">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="client_id" type="VARCHAR(100)" remarks="clientId"/>
+            
+            <column name="service_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="instance_id" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="host" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="port" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            
+            <column name="mac_address" type="VARCHAR(50)" remarks="MAC地址"/>
+            <column name="device_type" type="VARCHAR(50)" remarks="设备类型"/>
+            <column name="status" type="VARCHAR(20)" defaultValue="UP" remarks="UP/DOWN"/>
+            
+            <column name="register_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP" remarks="注册时间"/>
+            <column name="last_heartbeat_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP" remarks="最后心跳时间"/>
+            <column name="update_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"/>
+            
+            <column name="weight" type="INT" defaultValue="1" remarks="权重"/>
+            <column name="cluster_name" type="VARCHAR(50)" defaultValue="default" remarks="集群名称"/>
+        </createTable>
+        
+        <addUniqueConstraint tableName="service_instance" columnNames="instance_id" constraintName="uk_instance_id"/>
+        <addUniqueConstraint tableName="service_instance" columnNames="client_id" constraintName="uk_client_id"/>
+        
+        <createIndex tableName="service_instance" indexName="idx_service_name">
+            <column name="service_name"/>
+        </createIndex>
+        
+        <createIndex tableName="service_instance" indexName="idx_status">
+            <column name="status"/>
+        </createIndex>
+        
+        <createIndex tableName="service_instance" indexName="idx_mac_address">
+            <column name="mac_address"/>
+        </createIndex>
+        
+        <createIndex tableName="service_instance" indexName="idx_device_type">
+            <column name="device_type"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

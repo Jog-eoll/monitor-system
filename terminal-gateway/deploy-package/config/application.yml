@@ -1,0 +1,75 @@
+server:
+  port: 8093
+
+spring:
+  application:
+    name: terminal-udp-gateway
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/terminal_gateway?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# VAuth ???????
+vauth:
+  mock-mode: ${VAUTH_MOCK_MODE:false}
+  auth-id: "${VAUTH_AUTH_ID:44030000003330000310}"
+  password: "${VAUTH_PASSWORD:88888888}"
+  server-id: "${VAUTH_SERVER_ID:44010100003330003024}"
+  server-cert-path: "/app/certs/${VAUTH_SERVER_ID:44010100003330003024}_SIGN.cer"
+  client-cert-path: "/app/certs/${VAUTH_AUTH_ID:44030000003330000310}_SIGN.cer"
+  control-platform-url: "${CONTROL_PLATFORM_URL:http://192.168.1.233:8080}"
+  sign-enabled: false
+  svac-mode: ${VAUTH_SVAC_MODE:true}
+
+probe:
+  report-url: "${PROBE_REPORT_URL:http://192.168.1.233:8080/device/unified/batch-status}"
+  interval-seconds: 30
+  timeout-ms: 3000
+
+logging:
+  level:
+    com.terminalgateway.udpproxy: DEBUG
+    com.gateway.udpproxy: DEBUG
+    org.mybatis: WARN
+    org.apache.ibatis: WARN
+    com.baomidou.mybatisplus: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS, Asia/Shanghai} [%thread] %-5level %logger{50} - %msg%n"
+
+snapshot:
+  enabled: ${SNAPSHOT_ENABLED:false}
+  interval-seconds: ${SNAPSHOT_INTERVAL_SECONDS:10}
+  timeout-ms: ${SNAPSHOT_TIMEOUT_MS:5000}
+  tmp-dir: ${SNAPSHOT_TMP_DIR:${java.io.tmpdir}/terminal-gateway-snapshots}
+  report-url: ${SNAPSHOT_REPORT_URL:http://192.168.1.233:8080/content/receive}
+  report-retry-once: ${SNAPSHOT_REPORT_RETRY_ONCE:true}
+
+registry:
+  client:
+    preferredNetwork: "192.168.1."
+    enabled: true
+    server-addr: ${MONITOR_HOST:192.168.1.233}:${MONITOR_DEVICE_PORT:8080}
+    client-id: "${REGISTRY_CLIENT_ID:terminal-udp-gateway-192.168.1.26-8093}"
+    service-name: terminal-udp-gateway
+    device-type: terminal_encrypt_gateway
+    location: ${DEVICE_LOCATION:}
+    version: ${DEVICE_VERSION:1.0.0}
+    manufacturer: ${DEVICE_MANUFACTURER:}
+    model: ${DEVICE_MODEL:}
+    remark: ${DEVICE_REMARK:terminal decrypt gateway}
+
+provider:
+  jmdns:
+    enabled: ${PROVIDER_JMDNS_ENABLED:true}
+    bind-address: ${PROVIDER_JMDNS_BIND_ADDRESS:192.168.1.26}
+    advertise-host: ${PROVIDER_JMDNS_ADVERTISE_HOST:192.168.1.26}

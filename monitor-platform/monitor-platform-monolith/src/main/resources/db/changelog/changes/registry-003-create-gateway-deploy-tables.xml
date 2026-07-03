@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="registry-003-create-gateway-self-test-report" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <not>
+                <tableExists tableName="gateway_self_test_report"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="gateway_self_test_report" remarks="gateway self-test report">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="device_id" type="VARCHAR(100)" remarks="gateway device id">
+                <constraints nullable="false"/>
+            </column>
+            <column name="overall_status" type="VARCHAR(20)" remarks="PASS or FAIL">
+                <constraints nullable="false"/>
+            </column>
+            <column name="encrypt_sample_ok" type="BOOLEAN" remarks="encrypt sample check"/>
+            <column name="decrypt_sample_ok" type="BOOLEAN" remarks="decrypt sample check"/>
+            <column name="platform_handshake_ok" type="BOOLEAN" remarks="platform handshake check"/>
+            <column name="ukey_status_ok" type="BOOLEAN" remarks="ukey status check"/>
+            <column name="detail_json" type="TEXT" remarks="self-test detail json"/>
+            <column name="error_message" type="VARCHAR(1000)" remarks="error message"/>
+            <column name="report_time" type="DATETIME" remarks="gateway report time">
+                <constraints nullable="false"/>
+            </column>
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP" remarks="create time"/>
+        </createTable>
+
+        <createIndex tableName="gateway_self_test_report" indexName="idx_gateway_self_test_device_id">
+            <column name="device_id"/>
+        </createIndex>
+        <createIndex tableName="gateway_self_test_report" indexName="idx_gateway_self_test_report_time">
+            <column name="report_time"/>
+        </createIndex>
+        <createIndex tableName="gateway_self_test_report" indexName="idx_gateway_self_test_status">
+            <column name="overall_status"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="registry-004-create-gateway-deploy-log" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <not>
+                <tableExists tableName="gateway_deploy_log"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="gateway_deploy_log" remarks="gateway deploy log">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="device_id" type="VARCHAR(100)" remarks="gateway device id"/>
+            <column name="source_type" type="VARCHAR(50)" remarks="GATEWAY/DEPLOY/DISCOVERY">
+                <constraints nullable="false"/>
+            </column>
+            <column name="log_level" type="VARCHAR(20)" remarks="log level">
+                <constraints nullable="false"/>
+            </column>
+            <column name="message" type="VARCHAR(2000)" remarks="log message">
+                <constraints nullable="false"/>
+            </column>
+            <column name="context_json" type="TEXT" remarks="log context json"/>
+            <column name="client_ip" type="VARCHAR(64)" remarks="client ip"/>
+            <column name="report_time" type="DATETIME" remarks="log report time">
+                <constraints nullable="false"/>
+            </column>
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP" remarks="create time"/>
+        </createTable>
+
+        <createIndex tableName="gateway_deploy_log" indexName="idx_gateway_deploy_log_device_id">
+            <column name="device_id"/>
+        </createIndex>
+        <createIndex tableName="gateway_deploy_log" indexName="idx_gateway_deploy_log_source">
+            <column name="source_type"/>
+        </createIndex>
+        <createIndex tableName="gateway_deploy_log" indexName="idx_gateway_deploy_log_level">
+            <column name="log_level"/>
+        </createIndex>
+        <createIndex tableName="gateway_deploy_log" indexName="idx_gateway_deploy_log_create_time">
+            <column name="create_time"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

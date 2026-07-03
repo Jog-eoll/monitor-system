@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>内容预审核状态</title>
+    <style>
+        body { font-family: "Microsoft YaHei", sans-serif; margin: 16px; color: #1f2937; }
+        .row { margin-bottom: 12px; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; background: #e5e7eb; }
+        .ok { background: #dcfce7; color: #166534; }
+        .off { background: #fef3c7; color: #92400e; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #d1d5db; padding: 6px; font-size: 12px; text-align: left; }
+        button { margin-right: 6px; }
+    </style>
+</head>
+<body>
+<h2>内容预审核</h2>
+<div class="row" id="status"></div>
+<div class="row">
+    <button onclick="refreshAll()">刷新</button>
+    <button onclick="clearItems()">清空</button>
+</div>
+<table>
+    <thead>
+    <tr>
+        <th>auditId</th>
+        <th>状态</th>
+        <th>类型</th>
+        <th>文件</th>
+        <th>原因</th>
+        <th>操作</th>
+    </tr>
+    </thead>
+    <tbody id="items"></tbody>
+</table>
+
+<script>
+    async function fetchJson(url, options) {
+        const resp = await fetch(url, options || {});
+        return await resp.json();
+    }
+
+    function safe(v) {
+        return v === null || v === undefined ? "" : String(v);
+    }
+
+    async function loadStatus() {
+        const result = await fetchJson("/security/content-audit/status");
+        const data = result.data || {};
+        const enabled = !!data.enabled;
+        document.getElementById("status").innerHTML =
+            "enabled: <span class='badge " + (enabled ? "ok" : "off") + "'>" + enabled + "</span>" +
+            " mode: " + safe(data.mode) +
+            " pendingCount: " + safe(data.pendingCount) +
+            " autoApproved: " + safe(data.autoApproved) +
+            " manualApproved: " + safe(data.manualApproved) +
+            " rejected: " + safe(data.rejected) +
+            " packetsSeen: " + safe(data.packetsSeen) +
+            " auditablePackets: " + safe(data.auditablePackets) +
+            " activeAssemblies: " + safe(data.activeAssemblies) +
+            " idleCompleted: " + safe(data.idleCompleted) +
+            " lastError: " + safe(data.lastError);
+    }
+
+    async function loadItems() {
+        const result = await fetchJson("/security/content-audit/items");
+        const list = result.data || [];
+        const tbody = document.getElementById("items");
+        tbody.innerHTML = "";
+        list.forEach(item => {
+            const tr = document.createElement("tr");
+            tr.innerHTML =
+                "<td>" + safe(item.auditId) + "</td>" +
+                "<td>" + safe(item.status) + "</td>" +
+                "<td>" + safe(item.contentType) + "</td>" +
+                "<td>" + safe(item.fileName) + "</td>" +
+                "<td>" + safe(item.reason) + "</td>" +
+                "<td>" +
+                "<button onclick=\"approve('" + safe(item.auditId) + "')\">通过</button>" +
+                "<button onclick=\"reject('" + safe(item.auditId) + "')\">拒绝</button>" +
+                "</td>";
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function approve(auditId) {
+        await fetchJson("/security/content-audit/items/" + encodeURIComponent(auditId) + "/approve", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ operator: "ui" })
+        });
+        await refreshAll();
+    }
+
+    async function reject(auditId) {
+        await fetchJson("/security/content-audit/items/" + encodeURIComponent(auditId) + "/reject", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ operator: "ui" })
+        });
+        await refreshAll();
+    }
+
+    async function clearItems() {
+        await fetchJson("/security/content-audit/clear", { method: "POST" });
+        await refreshAll();
+    }
+
+    async function refreshAll() {
+        await loadStatus();
+        await loadItems();
+    }
+
+    refreshAll();
+    setInterval(refreshAll, 3000);
+</script>
+</body>
+</html>

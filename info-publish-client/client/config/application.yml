@@ -1,0 +1,58 @@
+server:
+  port: 7081
+
+client:
+  log:
+    encode:
+      enabled: false
+
+spring:
+  application:
+    name: info-publish-client
+  cloud:
+    compatibility-verifier:
+      enabled: false
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 1000MB
+
+registry:
+  client:
+    enabled: true
+    server-addr: 192.168.1.25:8069
+    api-prefix: /registry
+    register-path: /register
+    service-name: info-publish-client
+    device-type: publish_server
+    preferred-network: "192.168.1."
+    auto-register: true
+    auto-deregister: true
+    heartbeat-interval: 10000
+  config-db:
+    enabled: true
+    driver-class-name: com.mysql.jdbc.Driver
+    url: jdbc:mysql://192.168.1.31:3306/monitor_platform?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: root123456
+    query-timeout-seconds: 5
+
+monitor-platform:
+  client-id: ""
+
+provider:
+  jmdns:
+    enabled: ${PROVIDER_JMDNS_ENABLED:true}
+    bind-address: ${PROVIDER_JMDNS_BIND_ADDRESS:}
+    advertise-host: ${PROVIDER_JMDNS_ADVERTISE_HOST:}
+
+control-command:
+  gateway-url: ${CONTROL_COMMAND_GATEWAY_URL:http://192.168.1.25:8092}
+
+logging:
+  level:
+    com.infopublish: INFO
+    org.apache.ibatis: WARN
+    com.zaxxer.hikari: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS, Asia/Shanghai} [%thread] %-5level %logger{50} - %msg%n"

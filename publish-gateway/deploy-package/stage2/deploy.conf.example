@@ -1,0 +1,114 @@
+# ========== publish-gateway 一键部署配置模板 ==========
+# 复制此文件为 deploy.conf 并填写实际值
+# 命令: cp deploy.conf.example deploy.conf
+
+# ========== 服务器基础配置 ==========
+# 最低硬件要求
+MIN_CPU_CORES=2
+MIN_MEMORY_MB=4096
+MIN_DISK_GB=30
+
+# ========== MySQL 数据库配置 ==========
+# 使用外部 MySQL 服务器（不自建容器）
+DB_HOST='127.0.0.1'
+DB_PORT='3306'
+DB_NAME='udp_proxy_gateway'
+DB_USERNAME='root'
+DB_PASSWORD='Replace_Mysql_Password_2026!'
+DB_ROOT_PASSWORD='Replace_Mysql_Root_2026!'
+
+# ========== Redis 配置 ==========
+# 使用外部 Redis 服务器或本地 Redis 容器
+REDIS_ENABLED=true
+REDIS_HOST='127.0.0.1'
+REDIS_PORT='6379'
+REDIS_PASSWORD='Replace_Redis_Password_2026!'
+REDIS_DATABASE='2'
+
+# ========== MinIO 对象存储配置 ==========
+MINIO_ENABLED=true
+MINIO_HOST='127.0.0.1'
+MINIO_PORT='9000'
+MINIO_ACCESS_KEY='admin'
+MINIO_SECRET_KEY='Replace_Minio_Secret_2026!'
+MINIO_BUCKET='monitor-content'
+
+# ========== 管控平台配置 ==========
+# 管控平台地址（用于设备注册、内容上报、UKey认证）
+MONITOR_HOST='192.168.1.233'
+MONITOR_CONTENT_PORT='8080'
+MONITOR_UKEY_PORT='8080'
+MONITOR_DEVICE_PORT='8080'
+MONITOR_LOG_URL='http://192.168.1.233:8080'
+
+# ========== VAuth 国密配置 ==========
+# UKey/SDF 密码卡配置
+VAUTH_MOCK_MODE='false'
+VAUTH_DEVICE_TYPE='ukey'
+VAUTH_PASSWORD='88888888'
+VAUTH_AUTH_ID='44030000003330000305'
+VAUTH_SERVER_ID='44010100003330003024'
+VAUTH_UKEY_PATH='770/SKF_APP/ECC_Container_CA'
+VAUTH_UKEY_SN=''
+VAUTH_UKEY_CER_SN=''
+VAUTH_UKEY_CER_ID=''
+VAUTH_SVAC_MODE='false'
+
+# ========== JmDNS 服务发现配置 ==========
+PROVIDER_JMDNS_ENABLED='true'
+PROVIDER_JMDNS_BIND_ADDRESS='192.168.1.25'
+PROVIDER_JMDNS_ADVERTISE_HOST='192.168.1.25'
+
+# ========== 设备注册配置 ==========
+REGISTRY_CLIENT_ID='44030000003330000305'
+DEVICE_VERSION='1.0.0'
+DEVICE_LOCATION=''
+DEVICE_MANUFACTURER=''
+DEVICE_MODEL=''
+DEVICE_REMARK='publish encrypt gateway'
+
+# ========== info-publish-client 中继入口配置 ==========
+CLIENT_RELAY_ENABLED='true'
+CLIENT_RELAY_PORT='18092'
+CLIENT_RELAY_TRUSTED_IPS=''
+CLIENT_RELAY_VERIFY_SIGNATURE='false'
+CLIENT_RELAY_SIGNATURE_SECRET=''
+CLIENT_RELAY_REJECT_DIRECT_UDP='false'
+
+# ========== Sigma Play 安全包验签配置 ==========
+SECURE_PUBLISH_ENABLED='true'
+SECURE_PUBLISH_TRUST_STORE_DIR='/opt/publish-gateway/trust'
+SECURE_PUBLISH_TRUSTED_KEY_IDS=''
+SECURE_PUBLISH_DEFAULT_KEY_ID='default'
+SECURE_PUBLISH_VERIFIER_PUBLIC_KEY_PATH=''
+
+# ========== MQTT Agent 配置 ==========
+# 用于公网部署场景，通过 EMQX 接收管控平台命令
+MQTT_AGENT_ENABLED=false
+MQTT_BROKER_URL=ssl://127.0.0.1:8883
+MQTT_USERNAME=publish-gateway-001
+MQTT_PASSWORD=
+MQTT_CLIENT_ID=publish-gateway-001
+MQTT_TENANT_ID=default
+MQTT_SITE_ID=site-001
+
+# ========== 系统网络变更配置 ==========
+# 默认关闭。启用前必须确认容器以 host network + privileged/root 运行，并配置网卡白名单。
+SYSTEM_NETWORK_CHANGE_ENABLED=false
+SYSTEM_NETWORK_CHANGE_ALLOWED_INTERFACES=
+SYSTEM_NETWORK_CHANGE_ROLLBACK_DIR=/tmp
+SYSTEM_NETWORK_CHANGE_COMMAND_TIMEOUT_MS=10000
+
+# ========== 端口配置 ==========
+# 加密网关主服务端口
+GATEWAY_HTTP_PORT=8092
+# 客户端中继端口
+CLIENT_RELAY_PORT=18092
+
+# ========== 安装器配置 ==========
+# 是否允许从网络拉取 Docker 镜像
+PULL_PUBLIC_IMAGES=false
+# 是否自动开放防火墙端口
+AUTO_OPEN_FIREWALL=true
+# 是否自动安装 Docker（不推荐，建议提前手动安装）
+AUTO_INSTALL_DOCKER=false

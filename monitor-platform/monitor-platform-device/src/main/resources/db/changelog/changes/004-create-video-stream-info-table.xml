@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="004" author="system">
+        <comment>创建视频流信息表</comment>
+        
+        <createTable tableName="video_stream_info" remarks="视频流信息表">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <column name="stream_id" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            
+            <column name="video_params" type="VARCHAR(200)"/>
+            
+            <column name="connection_status" type="VARCHAR(20)" defaultValue="已断开"/>
+            
+            <column name="connection_duration" type="VARCHAR(50)"/>
+            
+            <column name="bitrate" type="INT"/>
+            
+            <column name="resolution" type="VARCHAR(20)"/>
+            
+            <column name="framerate" type="INT"/>
+            
+            <column name="protocol" type="VARCHAR(20)"/>
+            
+            <column name="codec" type="VARCHAR(20)"/>
+            
+            <column name="source_ip" type="VARCHAR(50)"/>
+            
+            <column name="source_port" type="INT"/>
+            
+            <column name="target_ip" type="VARCHAR(50)"/>
+            
+            <column name="target_port" type="INT"/>
+            
+            <column name="connected_time" type="DATETIME"/>
+            
+            <column name="last_active_time" type="DATETIME"/>
+            
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            
+            <column name="update_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            
+            <column name="remark" type="VARCHAR(500)"/>
+        </createTable>
+        
+        <addUniqueConstraint tableName="video_stream_info" columnNames="stream_id" constraintName="uk_video_stream_info_stream_id"/>
+        <createIndex tableName="video_stream_info" indexName="idx_video_stream_status">
+            <column name="connection_status"/>
+        </createIndex>
+        <createIndex tableName="video_stream_info" indexName="idx_video_stream_protocol">
+            <column name="protocol"/>
+        </createIndex>
+        <createIndex tableName="video_stream_info" indexName="idx_video_stream_create_time">
+            <column name="create_time"/>
+        </createIndex>
+        
+    </changeSet>
+
+</databaseChangeLog>

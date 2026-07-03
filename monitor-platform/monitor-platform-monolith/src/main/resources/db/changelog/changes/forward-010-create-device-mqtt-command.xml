@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!--
+        forward-010-create-device-mqtt-command
+        创建 device_mqtt_command 表，记录平台通过 MQTT 下发给现场网关的每一条命令
+    -->
+    <changeSet id="forward-010-create-device-mqtt-command" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <not>
+                <tableExists tableName="device_mqtt_command"/>
+            </not>
+        </preConditions>
+        <createTable tableName="device_mqtt_command" remarks="MQTT命令下发记录表">
+            <column name="id" type="BIGINT" autoIncrement="true" remarks="主键ID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="message_id" type="VARCHAR(64)" remarks="消息ID（UUID，与MqttEnvelope.messageId一致，用于幂等和回执关联）">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tenant_id" type="VARCHAR(64)" remarks="租户ID"/>
+            <column name="site_id" type="VARCHAR(64)" remarks="站点ID"/>
+            <column name="gateway_device_id" type="VARCHAR(128)" remarks="网关设备ID（命令下发的目标网关）">
+                <constraints nullable="false"/>
+            </column>
+            <column name="target_device_id" type="VARCHAR(128)" remarks="目标设备ID（命令最终作用的设备，可为网关自身）"/>
+            <column name="command" type="VARCHAR(128)" remarks="命令名称：APPLY_CHAIN_CONFIG / STOP_CHAIN / SET_CHAIN_STATUS 等">
+                <constraints nullable="false"/>
+            </column>
+            <column name="message_type" type="VARCHAR(32)" remarks="消息类型：PROXY_COMMAND"/>
+            <column name="topic" type="VARCHAR(512)" remarks="MQTT Topic（下发时使用的完整Topic）"/>
+            <column name="payload_json" type="TEXT" remarks="消息体JSON（MqttCommandMessage序列化后的JSON字符串）"/>
+            <column name="status" type="VARCHAR(32)" defaultValue="CREATED" remarks="命令状态：CREATED/PUBLISHED/RECEIVED/PROCESSING/SUCCESS/FAILED/TIMEOUT/CANCELED">
+                <constraints nullable="false"/>
+            </column>
+            <column name="qos" type="INT" remarks="QoS级别（0/1/2）"/>
+            <column name="retry_count" type="INT" defaultValue="0" remarks="当前重试次数"/>
+            <column name="timeout_at" type="DATETIME" remarks="超时时间"/>
+            <column name="published_at" type="DATETIME" remarks="发布时间（MQTT发送成功的时间）"/>
+            <column name="ack_time" type="DATETIME" remarks="回执时间（收到网关回执的时间）"/>
+            <column name="error_message" type="VARCHAR(1024)" remarks="错误信息（执行失败或超时时的描述）"/>
+            <column name="create_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP" remarks="创建时间"/>
+            <column name="update_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP" remarks="更新时间"/>
+        </createTable>
+
+        <!-- 索引 -->
+        <createIndex tableName="device_mqtt_command" indexName="uk_dmc_message_id" unique="true">
+            <column name="message_id"/>
+        </createIndex>
+        <createIndex tableName="device_mqtt_command" indexName="idx_dmc_gateway_device_id">
+            <column name="gateway_device_id"/>
+        </createIndex>
+        <createIndex tableName="device_mqtt_command" indexName="idx_dmc_status">
+            <column name="status"/>
+        </createIndex>
+        <createIndex tableName="device_mqtt_command" indexName="idx_dmc_timeout_at">
+            <column name="timeout_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

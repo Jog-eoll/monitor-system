@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>发布文件签名机</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f6f8fb;
+            --panel: #ffffff;
+            --line: #d9e1ec;
+            --text: #172033;
+            --muted: #667085;
+            --accent: #176bff;
+            --ok: #147d46;
+            --warn: #a15c00;
+            --bad: #b42318;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+        header {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--line);
+            background: var(--panel);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }
+        h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
+        main {
+            padding: 22px 24px;
+            display: grid;
+            grid-template-columns: minmax(420px, 1.1fr) minmax(360px, 0.9fr);
+            gap: 18px;
+        }
+        section {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 18px;
+        }
+        h2 {
+            margin: 0 0 14px;
+            font-size: 17px;
+            letter-spacing: 0;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            gap: 8px 12px;
+            font-size: 14px;
+        }
+        .label { color: var(--muted); }
+        .mono {
+            font-family: Consolas, "Courier New", monospace;
+            word-break: break-all;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            min-height: 24px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 13px;
+            background: #edf3ff;
+            color: #164fb8;
+        }
+        .badge.ok { background: #e9f7ef; color: var(--ok); }
+        .badge.bad { background: #feecec; color: var(--bad); }
+        .drop-zone {
+            min-height: 260px;
+            border: 2px dashed #aebbd0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 24px;
+            background: #fbfdff;
+            transition: border-color .15s ease, background .15s ease;
+        }
+        .drop-zone.dragging {
+            border-color: var(--accent);
+            background: #eef5ff;
+        }
+        .drop-title {
+            font-size: 19px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .drop-sub {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.7;
+        }
+        .actions {
+            margin-top: 16px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        button, .file-button {
+            border: 1px solid #b8c3d4;
+            border-radius: 6px;
+            background: #fff;
+            color: var(--text);
+            padding: 8px 12px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        button.primary, .file-button.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+        button:disabled {
+            cursor: not-allowed;
+            opacity: .55;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .progress-wrap {
+            margin-top: 14px;
+            height: 10px;
+            background: #e9eef6;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            width: 0;
+            background: var(--accent);
+            transition: width .2s ease;
+        }
+        .message {
+            margin-top: 12px;
+            color: var(--muted);
+            font-size: 14px;
+            min-height: 22px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th, td {
+            padding: 9px 8px;
+            border-bottom: 1px solid var(--line);
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            color: var(--muted);
+            font-weight: 600;
+            background: #fafbfd;
+        }
+        .result-ok { color: var(--ok); font-weight: 700; }
+        .result-bad { color: var(--bad); font-weight: 700; }
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        @media (max-width: 980px) {
+            main { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>发布文件签名机</h1>
+    <span id="enabledBadge" class="badge">读取中</span>
+</header>
+
+<main>
+    <section>
+        <h2>签名操作</h2>
+        <div id="dropZone" class="drop-zone">
+            <div>
+                <div class="drop-title">拖入文件夹或文件</div>
+                <div class="drop-sub">
+                    签名后生成 .spkg 到签名机输出目录<br>
+                    私钥只在签名机后端使用，不会传到浏览器
+                </div>
+            </div>
+        </div>
+        <div class="actions">
+            <label class="file-button primary">
+                选择文件夹
+                <input id="folderInput" type="file" webkitdirectory directory multiple>
+            </label>
+            <label class="file-button">
+                选择文件
+                <input id="fileInput" type="file" multiple>
+            </label>
+            <button id="scanButton">扫描服务端目录</button>
+            <button id="keyButton">生成/覆盖签名密钥</button>
+            <button id="refreshButton">刷新状态</button>
+        </div>
+        <div class="progress-wrap"><div id="progressBar" class="progress-bar"></div></div>
+        <div id="message" class="message"></div>
+    </section>
+
+    <section>
+        <h2>签名机状态</h2>
+        <div class="status-grid">
+            <div class="label">启用状态</div><div id="statusEnabled">-</div>
+            <div class="label">签名算法</div><div id="statusProvider">-</div>
+            <div class="label">签发者</div><div id="statusPublisher">-</div>
+            <div class="label">AI检测</div><div id="statusAuditEnabled">-</div>
+            <div class="label">AI接口</div><div id="statusAuditUrl" class="mono">-</div>
+            <div class="label">AI通过数</div><div id="statusAuditPassed">-</div>
+            <div class="label">AI拒绝数</div><div id="statusAuditRejected">-</div>
+            <div class="label">输入目录</div><div id="statusInput" class="mono">-</div>
+            <div class="label">输出目录</div><div id="statusOutput" class="mono">-</div>
+            <div class="label">归档目录</div><div id="statusArchive" class="mono">-</div>
+            <div class="label">拒绝目录</div><div id="statusRejected" class="mono">-</div>
+            <div class="label">公钥路径</div><div id="statusPublicKey" class="mono">-</div>
+            <div class="label">已签名数</div><div id="statusCreated">-</div>
+            <div class="label">失败数</div><div id="statusFailed">-</div>
+            <div class="label">最近错误</div><div id="statusError" class="mono">-</div>
+        </div>
+    </section>
+
+    <section style="grid-column: 1 / -1;">
+        <div class="toolbar">
+            <h2 style="margin:0;">最近签名结果</h2>
+            <button id="clearButton">清空列表</button>
+        </div>
+        <table>
+            <thead>
+            <tr>
+                <th style="width:80px;">结果</th>
+                <th>源文件</th>
+                <th>AI检测</th>
+                <th>输出包</th>
+                <th style="width:260px;">Hash / 错误</th>
+            </tr>
+            </thead>
+            <tbody id="resultBody">
+            <tr><td colspan="5" class="label">暂无记录</td></tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+
+<script>
+    const dropZone = document.getElementById('dropZone');
+    const folderInput = document.getElementById('folderInput');
+    const fileInput = document.getElementById('fileInput');
+    const message = document.getElementById('message');
+    const progressBar = document.getElementById('progressBar');
+    const resultBody = document.getElementById('resultBody');
+    const results = [];
+
+    function setText(id, value) {
+        document.getElementById(id).textContent = value == null || value === '' ? '-' : String(value);
+    }
+
+    function setBusy(text, percent) {
+        message.textContent = text || '';
+        progressBar.style.width = Math.max(0, Math.min(100, percent || 0)) + '%';
+    }
+
+    async function refreshStatus() {
+        try {
+            const response = await fetch('/security/secure-publish/signer/status');
+            const json = await response.json();
+            const data = json.data || {};
+            const enabledBadge = document.getElementById('enabledBadge');
+            enabledBadge.textContent = data.enabled ? '签名机已启用' : '签名机未启用';
+            enabledBadge.className = data.enabled ? 'badge ok' : 'badge bad';
+            setText('statusEnabled', data.enabled ? 'true' : 'false');
+            setText('statusProvider', data.signatureProvider);
+            setText('statusPublisher', data.publisher);
+            setText('statusAuditEnabled', data.auditEnabled ? 'true' : 'false');
+            setText('statusAuditUrl', data.auditUrl);
+            setText('statusAuditPassed', data.auditPassed);
+            setText('statusAuditRejected', data.auditRejected);
+            setText('statusInput', data.inputDir);
+            setText('statusOutput', data.outputDir);
+            setText('statusArchive', data.archiveDir);
+            setText('statusRejected', data.rejectedDir);
+            setText('statusPublicKey', data.publicKeyPath);
+            setText('statusCreated', data.packagesCreated);
+            setText('statusFailed', data.filesRejected);
+            setText('statusError', data.lastError);
+        } catch (error) {
+            document.getElementById('enabledBadge').textContent = '状态读取失败';
+            document.getElementById('enabledBadge').className = 'badge bad';
+            setText('statusError', error.message);
+        }
+    }
+
+    function renderResults() {
+        if (results.length === 0) {
+            resultBody.innerHTML = '<tr><td colspan="5" class="label">暂无记录</td></tr>';
+            return;
+        }
+        resultBody.innerHTML = results.slice(0, 100).map(item => {
+            const ok = item.created === true;
+            return `<tr>
+                <td class="${ok ? 'result-ok' : 'result-bad'}">${ok ? '成功' : '失败'}</td>
+                <td class="mono">${escapeHtml(item.source || item.payloadPath || '')}</td>
+                <td class="mono">${escapeHtml(item.auditMessage || item.auditReason || item.auditDecision || '')}</td>
+                <td class="mono">${escapeHtml(item.packagePath || '')}</td>
+                <td class="mono">${escapeHtml(item.fileHash || item.error || '')}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, ch => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[ch]));
+    }
+
+    async function uploadFiles(fileList) {
+        const files = Array.from(fileList || []).filter(file => file && file.size > 0);
+        if (files.length === 0) {
+            setBusy('没有可签名文件', 0);
+            return;
+        }
+        const form = new FormData();
+        files.forEach(file => {
+            form.append('files', file, file.name);
+            form.append('relativePaths', file.webkitRelativePath || file.relativePath || file.name);
+        });
+        setBusy(`上传并签名 ${files.length} 个文件...`, 20);
+        try {
+            const response = await fetch('/security/secure-publish/signer/upload', {
+                method: 'POST',
+                body: form
+            });
+            const json = await response.json();
+            const data = json.data || {};
+            const details = data.details || [];
+            results.unshift(...details.reverse());
+            renderResults();
+            setBusy(`完成：成功 ${data.signed || 0}，失败 ${data.rejected || 0}`, 100);
+            await refreshStatus();
+        } catch (error) {
+            setBusy('签名失败：' + error.message, 0);
+        }
+    }
+
+    async function scanServerDir() {
+        setBusy('扫描服务端输入目录...', 20);
+        try {
+            const response = await fetch('/security/secure-publish/signer/scan', { method: 'POST' });
+            const json = await response.json();
+            const data = json.data || {};
+            setBusy(`扫描完成：成功 ${data.signed || 0}，失败 ${data.rejected || 0}`, 100);
+            await refreshStatus();
+        } catch (error) {
+            setBusy('扫描失败：' + error.message, 0);
+        }
+    }
+
+    async function createKeyPair() {
+        if (!confirm('确认覆盖签名机密钥？覆盖后旧公钥验签会失败。')) {
+            return;
+        }
+        setBusy('生成密钥...', 20);
+        try {
+            const response = await fetch('/security/secure-publish/signer/keypair', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ overwrite: true })
+            });
+            const json = await response.json();
+            const data = json.data || {};
+            setBusy(data.created ? '密钥已生成' : ('密钥生成失败：' + (data.error || 'unknown')), data.created ? 100 : 0);
+            await refreshStatus();
+        } catch (error) {
+            setBusy('密钥生成失败：' + error.message, 0);
+        }
+    }
+
+    function readEntry(entry, pathPrefix) {
+        return new Promise(resolve => {
+            if (entry.isFile) {
+                entry.file(file => {
+                    file.relativePath = pathPrefix + file.name;
+                    resolve([file]);
+                }, () => resolve([]));
+                return;
+            }
+            if (!entry.isDirectory) {
+                resolve([]);
+                return;
+            }
+            const reader = entry.createReader();
+            const files = [];
+            const readBatch = () => {
+                reader.readEntries(async entries => {
+                    if (!entries.length) {
+                        resolve(files);
+                        return;
+                    }
+                    for (const child of entries) {
+                        const childFiles = await readEntry(child, pathPrefix + entry.name + '/');
+                        files.push(...childFiles);
+                    }
+                    readBatch();
+                }, () => resolve(files));
+            };
+            readBatch();
+        });
+    }
+
+    async function filesFromDrop(event) {
+        const items = Array.from(event.dataTransfer.items || []);
+        if (items.length === 0) {
+            return Array.from(event.dataTransfer.files || []);
+        }
+        const files = [];
+        for (const item of items) {
+            const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+            if (entry) {
+                files.push(...await readEntry(entry, ''));
+            }
+        }
+        return files.length ? files : Array.from(event.dataTransfer.files || []);
+    }
+
+    dropZone.addEventListener('dragover', event => {
+        event.preventDefault();
+        dropZone.classList.add('dragging');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+    dropZone.addEventListener('drop', async event => {
+        event.preventDefault();
+        dropZone.classList.remove('dragging');
+        uploadFiles(await filesFromDrop(event));
+    });
+    folderInput.addEventListener('change', event => uploadFiles(event.target.files));
+    fileInput.addEventListener('change', event => uploadFiles(event.target.files));
+    document.getElementById('scanButton').addEventListener('click', scanServerDir);
+    document.getElementById('keyButton').addEventListener('click', createKeyPair);
+    document.getElementById('refreshButton').addEventListener('click', refreshStatus);
+    document.getElementById('clearButton').addEventListener('click', () => {
+        results.length = 0;
+        renderResults();
+    });
+
+    refreshStatus();
+</script>
+</body>
+</html>
