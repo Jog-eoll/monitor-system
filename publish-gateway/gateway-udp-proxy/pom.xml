@@ -177,7 +177,7 @@
                     <execution>
                         <id>build-image</id>
                         <!-- 绑定到 package 阶段：mvn package 时自动构建镜像并推送到远程 Docker -->
-                        <phase>package</phase>
+                        <phase>install</phase>
                         <goals>
                             <goal>build</goal>
                         </goals>
