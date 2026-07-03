@@ -12,6 +12,7 @@
     <include file="db/changelog/changes/device-003-create-terminal-app-info-table.xml"/>
     <include file="db/changelog/changes/device-004-create-video-stream-info-table.xml"/>
     <include file="db/changelog/changes/device-005-add-unified-device-extended-columns.xml"/>
+    <include file="db/changelog/changes/device-006-create-info-board-model-vendor-mapping.xml"/>
 
     <!-- ==================== Alarm 模块 ==================== -->
     <include file="db/changelog/changes/alarm-001-create-alarm-record-table.xml"/>

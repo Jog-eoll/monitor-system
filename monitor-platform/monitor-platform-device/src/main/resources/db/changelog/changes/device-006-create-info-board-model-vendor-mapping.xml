@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="device-006-create-info-board-model-vendor-mapping" author="system">
+        <sql dbms="mysql" splitStatements="true" stripComments="true"><![CDATA[
+CREATE TABLE IF NOT EXISTS `info_board_model_vendor_mapping` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `model_code` varchar(100) NOT NULL COMMENT '型号编码(如A2K/A4K)',
+  `model_name` varchar(200) DEFAULT NULL COMMENT '型号名称',
+  `platform_manufacturer` varchar(100) NOT NULL COMMENT '平台侧厂商编码(如colorlight)',
+  `terminal_vendor_hint` varchar(100) NOT NULL COMMENT '解密网关侧厂商提示(如COLORLIGHT)',
+  `default_port` int(11) DEFAULT NULL COMMENT '默认端口号',
+  `enabled` tinyint(1) NOT NULL DEFAULT 1 COMMENT '是否启用(1-启用/0-禁用)',
+  `remark` varchar(500) DEFAULT NULL COMMENT '备注',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_model_code` (`model_code`),
+  KEY `idx_platform_manufacturer` (`platform_manufacturer`),
+  KEY `idx_terminal_vendor_hint` (`terminal_vendor_hint`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='情报板型号-厂商映射表';
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="device-006-init-a2k-a4k-mapping" author="system">
+        <sql dbms="mysql" splitStatements="true" stripComments="true"><![CDATA[
+INSERT IGNORE INTO `info_board_model_vendor_mapping` (`model_code`, `model_name`, `platform_manufacturer`, `terminal_vendor_hint`, `default_port`, `enabled`, `remark`)
+VALUES
+('A2K', 'A2K播放盒', 'colorlight', 'COLORLIGHT', 8989, 1, '卡莱特A2K型号-默认端口8989'),
+('A4K', 'A4K播放盒', 'colorlight', 'COLORLIGHT', 8989, 1, '卡莱特A4K型号-默认端口8989');
+        ]]></sql>
+    </changeSet>
+
+</databaseChangeLog>

@@ -6,6 +6,8 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
 
+    <include file="db/changelog/changes/device-006-create-info-board-model-vendor-mapping.xml"/>
+
     <changeSet id="device-001-create-unified-device-info" author="system">
         <sql dbms="mysql" splitStatements="true" stripComments="true"><![CDATA[
 CREATE TABLE IF NOT EXISTS `unified_device_info` (

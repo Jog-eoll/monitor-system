@@ -165,4 +165,14 @@ public interface UnifiedDeviceService {
     boolean updateDeviceLocation(String deviceId, Double longitude, Double latitude);
 
     boolean updateDeviceIp(String deviceId, String ip);
+
+    /**
+     * 根据 deviceId 查询设备
+     */
+    UnifiedDevice findByDeviceId(String deviceId);
+
+    /**
+     * 更新设备的 extraInfo（JSON 字段）
+     */
+    boolean updateExtraInfo(String deviceId, String extraInfoJson);
 }

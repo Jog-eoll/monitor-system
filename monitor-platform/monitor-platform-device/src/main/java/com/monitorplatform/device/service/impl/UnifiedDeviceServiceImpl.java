@@ -728,6 +728,24 @@ public class UnifiedDeviceServiceImpl implements UnifiedDeviceService {
     }
 
     @Override
+    public UnifiedDevice findByDeviceId(String deviceId) {
+        LambdaQueryWrapper<UnifiedDevice> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(UnifiedDevice::getDeviceId, deviceId);
+        return unifiedDeviceMapper.selectOne(wrapper);
+    }
+
+    @Override
+    public boolean updateExtraInfo(String deviceId, String extraInfoJson) {
+        LambdaUpdateWrapper<UnifiedDevice> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(UnifiedDevice::getDeviceId, deviceId)
+               .set(UnifiedDevice::getExtraInfo, extraInfoJson)
+               .set(UnifiedDevice::getUpdateTime, LocalDateTime.now());
+        int rows = unifiedDeviceMapper.update(null, wrapper);
+        log.info("[updateExtraInfo] deviceId={}, rows={}", deviceId, rows);
+        return rows > 0;
+    }
+
+    @Override
     public Map<String, Object> getInfoBoardLocationByIp(String ip) {
         LambdaQueryWrapper<UnifiedDevice> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(UnifiedDevice::getIpAddress, ip)

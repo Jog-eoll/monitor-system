@@ -2,18 +2,27 @@ package com.monitorplatform.device.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.monitorplatform.common.entity.Result;
+import com.monitorplatform.device.entity.InfoBoardModelVendorMapping;
 import com.monitorplatform.device.entity.UnifiedDevice;
 import com.monitorplatform.device.entity.dto.*;
+import com.monitorplatform.device.service.InfoBoardModelVendorMappingService;
 import com.monitorplatform.device.service.UnifiedDeviceService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
+import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * 统一设备管理控制器
@@ -25,6 +34,12 @@ public class UnifiedDeviceController {
 
     @Resource
     private UnifiedDeviceService unifiedDeviceService;
+
+    @Resource
+    private InfoBoardModelVendorMappingService mappingService;
+
+    @Value("${info-board.default-publish-gateway-url:http://127.0.0.1:8092}")
+    private String defaultPublishGatewayUrl;
 
     /**
      * 获取设备分类树
@@ -407,6 +422,217 @@ public class UnifiedDeviceController {
         log.info("[BatchStatus] 批量状态更新完成: total={}, updated={}, skipped={}",
                 probeResults.size(), successCount, skipCount);
         return Result.data(data);
+    }
+
+    /**
+     * 手动添加情报板 —— 根据型号映射自动填充厂商、端口，并异步注册到解密网关
+     * POST /device/unified/info-board/manual
+     */
+    @PostMapping("/info-board/manual")
+    public Result<?> addInfoBoardManual(@Valid @RequestBody InfoBoardManualAddDTO dto) {
+        try {
+            // Step 1: 查型号映射
+            Optional<InfoBoardModelVendorMapping> mappingOpt = mappingService.findByModelCode(dto.getModelCode());
+            if (!mappingOpt.isPresent()) {
+                return Result.error("不支持的型号: " + dto.getModelCode() + "，请先在型号厂商映射中配置");
+            }
+            InfoBoardModelVendorMapping mapping = mappingOpt.get();
+
+            // Step 2: 构建 UnifiedDevice
+            UnifiedDevice device = new UnifiedDevice();
+            String deviceId = dto.getDeviceId() != null && !dto.getDeviceId().trim().isEmpty()
+                    ? dto.getDeviceId().trim()
+                    : "IB-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
+            device.setDeviceId(deviceId);
+            device.setDeviceName(dto.getDeviceName());
+            device.setDeviceType("info_board");
+            device.setIpAddress(dto.getIpAddress());
+            device.setPort(dto.getPort() != null ? dto.getPort() : mapping.getDefaultPort());
+            device.setManufacturer(mapping.getPlatformManufacturer());
+            device.setModel(mapping.getModelCode());
+            device.setLongitude(dto.getLongitude());
+            device.setLatitude(dto.getLatitude());
+            device.setLocation(dto.getLocation());
+            device.setRegionId(dto.getRegionId());
+            device.setRemark(dto.getRemark());
+            device.setStatus("离线");
+            device.setCreateTime(LocalDateTime.now());
+            device.setUpdateTime(LocalDateTime.now());
+
+            // Step 3: 保存设备到平台数据库
+            boolean saved = unifiedDeviceService.addDevice(device);
+            if (!saved) {
+                return Result.error("保存设备失败");
+            }
+
+            // Step 4: 异步调用加密网关转发到解密网关注册设备（保存失败不回滚设备）
+            Map<String, Object> gatewayResult = new LinkedHashMap<>();
+            gatewayResult.put("status", "FAILED");
+            gatewayResult.put("lastAttemptTime", LocalDateTime.now().toString());
+
+            String publishGatewayUrl = dto.getPublishGatewayUrl() != null && !dto.getPublishGatewayUrl().trim().isEmpty()
+                    ? dto.getPublishGatewayUrl().trim() : defaultPublishGatewayUrl;
+
+            try {
+                Map<String, Object> registerBody = new LinkedHashMap<>();
+                registerBody.put("deviceId", deviceId);
+                registerBody.put("ip", dto.getIpAddress());
+                registerBody.put("port", device.getPort());
+                registerBody.put("vendor", mapping.getTerminalVendorHint());
+                registerBody.put("terminalGatewayUrl", dto.getTerminalGatewayUrl());
+                registerBody.put("sn", dto.getDeviceId());
+
+                RestTemplate restTemplate = new RestTemplate();
+                String url = publishGatewayUrl + "/api/terminal-devices/register";
+                @SuppressWarnings("unchecked")
+                Map<String, Object> resp = restTemplate.postForObject(url, registerBody, Map.class);
+
+                if (resp != null && Integer.valueOf(200).equals(resp.get("code"))) {
+                    gatewayResult.put("status", "SUCCESS");
+                    gatewayResult.put("message", "解密网关注册成功");
+                    log.info("[InfoBoard手动添加] 解密网关注册成功: deviceId={}, gatewayResult={}", deviceId, resp);
+                } else {
+                    gatewayResult.put("status", "FAILED");
+                    gatewayResult.put("message", resp != null ? resp.get("msg") : "加密网关返回空");
+                    log.warn("[InfoBoard手动添加] 解密网关注册失败: deviceId={}, resp={}", deviceId, resp);
+                }
+            } catch (Exception e) {
+                gatewayResult.put("status", "FAILED");
+                gatewayResult.put("message", "网关调用异常: " + e.getMessage());
+                log.error("[InfoBoard手动添加] 调用加密网关异常: deviceId={}", deviceId, e);
+            }
+
+            gatewayResult.put("targetGateway", publishGatewayUrl);
+            gatewayResult.put("terminalGatewayUrl", dto.getTerminalGatewayUrl());
+            device.setExtraInfo(buildExtraInfo(device.getExtraInfo(), "gatewayRegister", gatewayResult));
+            unifiedDeviceService.updateExtraInfo(deviceId, device.getExtraInfo());
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("device", device);
+            result.put("gatewayRegister", gatewayResult);
+            return Result.data(result);
+        } catch (Exception e) {
+            log.error("手动添加情报板异常", e);
+            return Result.error("手动添加情报板失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 重试情报板网关注册
+     * POST /device/unified/info-board/{deviceId}/gateway-register
+     */
+    @PostMapping("/info-board/{deviceId}/gateway-register")
+    public Result<?> retryGatewayRegister(@PathVariable String deviceId) {
+        try {
+            UnifiedDevice device = unifiedDeviceService.findByDeviceId(deviceId);
+            if (device == null || !"info_board".equals(device.getDeviceType())) {
+                return Result.error("情报板设备不存在: " + deviceId);
+            }
+
+            InfoBoardModelVendorMapping mapping = null;
+            if (device.getModel() != null) {
+                mapping = mappingService.findByModelCode(device.getModel()).orElse(null);
+            }
+
+            String vendorHint = mapping != null ? mapping.getTerminalVendorHint() : "COLORLIGHT";
+
+            // 从上次 extraInfo 恢复 terminalGatewayUrl，避免回退到加密网关默认值
+            String terminalGatewayUrl = readGatewayRegisterField(device.getExtraInfo(), "terminalGatewayUrl");
+
+            Map<String, Object> registerBody = new LinkedHashMap<>();
+            registerBody.put("deviceId", deviceId);
+            registerBody.put("ip", device.getIpAddress());
+            registerBody.put("port", device.getPort());
+            registerBody.put("vendor", vendorHint);
+            registerBody.put("sn", device.getDeviceId());
+            if (terminalGatewayUrl != null && !terminalGatewayUrl.isEmpty()) {
+                registerBody.put("terminalGatewayUrl", terminalGatewayUrl);
+            }
+
+            Map<String, Object> gatewayResult = new LinkedHashMap<>();
+            gatewayResult.put("lastAttemptTime", LocalDateTime.now().toString());
+
+            try {
+                RestTemplate restTemplate = new RestTemplate();
+                String url = defaultPublishGatewayUrl + "/api/terminal-devices/register";
+                @SuppressWarnings("unchecked")
+                Map<String, Object> resp = restTemplate.postForObject(url, registerBody, Map.class);
+
+                if (resp != null && Integer.valueOf(200).equals(resp.get("code"))) {
+                    gatewayResult.put("status", "SUCCESS");
+                    gatewayResult.put("message", "解密网关注册成功");
+                } else {
+                    gatewayResult.put("status", "FAILED");
+                    gatewayResult.put("message", resp != null ? resp.get("msg") : "加密网关返回空");
+                }
+            } catch (Exception e) {
+                gatewayResult.put("status", "FAILED");
+                gatewayResult.put("message", "网关调用异常: " + e.getMessage());
+                log.error("[InfoBoard重试] 调用加密网关异常: deviceId={}", deviceId, e);
+            }
+
+            gatewayResult.put("targetGateway", defaultPublishGatewayUrl);
+            if (terminalGatewayUrl != null && !terminalGatewayUrl.isEmpty()) {
+                gatewayResult.put("terminalGatewayUrl", terminalGatewayUrl);
+            }
+            String extraInfo = buildExtraInfo(device.getExtraInfo(), "gatewayRegister", gatewayResult);
+            unifiedDeviceService.updateExtraInfo(deviceId, extraInfo);
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("deviceId", deviceId);
+            result.put("gatewayRegister", gatewayResult);
+            return "SUCCESS".equals(gatewayResult.get("status"))
+                    ? Result.success("重试注册成功", result)
+                    : Result.data(result);
+        } catch (Exception e) {
+            log.error("重试网关注册异常: deviceId={}", deviceId, e);
+            return Result.error("重试注册失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 从 extraInfo JSON 中读取 gatewayRegister 子字段（用于重试时恢复上次参数）。
+     */
+    private String readGatewayRegisterField(String extraInfoJson, String field) {
+        try {
+            if (extraInfoJson == null || extraInfoJson.trim().isEmpty()) {
+                return null;
+            }
+            ObjectMapper mapper = new ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = mapper.readValue(extraInfoJson, Map.class);
+            Object gatewayRegister = map.get("gatewayRegister");
+            if (gatewayRegister instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> regMap = (Map<String, Object>) gatewayRegister;
+                Object value = regMap.get(field);
+                return value != null ? value.toString() : null;
+            }
+        } catch (Exception e) {
+            log.warn("[readGatewayRegisterField] 读取 extraInfo 失败: field={}", field, e);
+        }
+        return null;
+    }
+
+    /**
+     * 向 extraInfo JSON 中合并新字段
+     */
+    @SuppressWarnings("unchecked")
+    private String buildExtraInfo(String existingJson, String key, Object value) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            Map<String, Object> map;
+            if (existingJson != null && !existingJson.trim().isEmpty()) {
+                map = mapper.readValue(existingJson, Map.class);
+            } else {
+                map = new LinkedHashMap<>();
+            }
+            map.put(key, value);
+            return mapper.writeValueAsString(map);
+        } catch (Exception e) {
+            log.warn("[buildExtraInfo] JSON处理失败: key={}", key, e);
+            return "{\"" + key + "\":{}}";
+        }
     }
 
     /**

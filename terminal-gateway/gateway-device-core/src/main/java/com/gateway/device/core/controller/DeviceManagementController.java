@@ -75,6 +75,31 @@ public class DeviceManagementController {
             CommonDeviceCapability.SCREEN_ATTRIBUTE_SET
     ));
 
+    private static final List<DeviceCapability<?>> COLOR_LIGHT_CAPABILITIES = Collections.unmodifiableList(Arrays.asList(
+            DEVICE_SEARCH_CAPABILITY,
+            CommonDeviceCapability.DEVICE_INFO_GET,
+            CommonDeviceCapability.IMAGE_LIST_QUERY,
+            CommonDeviceCapability.IMAGE_UPLOAD,
+            CommonDeviceCapability.IMAGE_DOWNLOAD,
+            CommonDeviceCapability.IMAGE_DELETE,
+            CommonDeviceCapability.TEXT_LIST_QUERY,
+            CommonDeviceCapability.TEXT_UPLOAD,
+            CommonDeviceCapability.TEXT_DOWNLOAD,
+            CommonDeviceCapability.TEXT_DELETE,
+            CommonDeviceCapability.VIDEO_LIST_QUERY,
+            CommonDeviceCapability.VIDEO_UPLOAD,
+            CommonDeviceCapability.VIDEO_DOWNLOAD,
+            CommonDeviceCapability.VIDEO_DELETE,
+            CommonDeviceCapability.MEDIA_MULTI_UPLOAD,
+            CommonDeviceCapability.PLAYLIST_GET,
+            CommonDeviceCapability.PLAYLIST_SET,
+            CommonDeviceCapability.PLAYLIST_CLEAR,
+            CommonDeviceCapability.POWER_CONTROL_REBOOT,
+            CommonDeviceCapability.SCREEN_BLACKOUT,
+            CommonDeviceCapability.BRIGHTNESS_SET,
+            CommonDeviceCapability.TIME_SYNC
+    ));
+
     private static final List<DeviceCapability<?>> JET_FILE_II_CAPABILITIES = Collections.unmodifiableList(Arrays.asList(
             JetFileIICapability.NMG_FILE_LIST_QUERY,
             JetFileIICapability.NMG_FILE_UPLOAD,
@@ -194,6 +219,8 @@ public class DeviceManagementController {
             capabilities.addAll(JET_FILE_II_CAPABILITIES);
         } else if (DeviceVendor.NOVA_STAR_VIPLEX_CORE.equals(vendor)) {
             capabilities.addAll(NOVA_VIPLEX_CORE_CAPABILITIES);
+        } else if (DeviceVendor.COLOR_LIGHT_STANDARD.equals(vendor)) {
+            capabilities.addAll(COLOR_LIGHT_CAPABILITIES);
         }
         return capabilities;
     }
@@ -227,6 +254,7 @@ public class DeviceManagementController {
         addCapabilities(map, JET_FILE_II_COMMON_CAPABILITIES);
         addCapabilities(map, NOVA_VIPLEX_CORE_CAPABILITIES);
         addCapabilities(map, JET_FILE_II_CAPABILITIES);
+        addCapabilities(map, COLOR_LIGHT_CAPABILITIES);
         return Collections.unmodifiableMap(map);
     }
 
@@ -250,7 +278,8 @@ public class DeviceManagementController {
                 || "JET_FILE_II".equals(normalized)) {
             return DeviceVendor.JET_FILE_II_STANDARD;
         }
-        if ("COLORLIGHT".equals(normalized) || "COLOR_LIGHT".equals(normalized)) {
+        if ("COLORLIGHT".equals(normalized) || "COLOR_LIGHT".equals(normalized)
+                || "COLORIGHT".equals(normalized)) {
             return DeviceVendor.COLOR_LIGHT_STANDARD;
         }
         try {
