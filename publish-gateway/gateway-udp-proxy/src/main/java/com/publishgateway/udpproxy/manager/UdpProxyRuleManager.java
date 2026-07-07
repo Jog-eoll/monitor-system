@@ -1,7 +1,6 @@
 package com.publishgateway.udpproxy.manager;
 
 import com.publishgateway.udpproxy.assembly.UdpFileAssemblyService;
-import com.publishgateway.udpproxy.ack.AckProxyLearningService;
 import com.publishgateway.udpproxy.service.ClientValidationService;
 import com.publishgateway.udpproxy.service.DataReportService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -66,8 +65,6 @@ public class UdpProxyRuleManager {
     @Resource
     private UdpFileAssemblyService udpFileAssemblyService;
 
-    @Resource
-    private AckProxyLearningService ackProxyLearningService;
 
     @Resource
     private DiagnosticLogReporter diagnosticLogReporter;
@@ -227,7 +224,7 @@ public class UdpProxyRuleManager {
                 rule, cryptoService, cryptoPacketStore, dataReportService, transcodeEnabled, transcodeService,
                 clientValidationService, perPacketClientValidationEnabled, trafficReconciliationService,
                 clientRelayProperties.isRejectDirectUdp(), securePublishIngressService, udpFileAssemblyService,
-                ackProxyLearningService, diagnosticLogReporter);
+                diagnosticLogReporter);
         udpServer.start();
         if (udpServer.isRunning()) {
             runningServers.put(rule.getRuleId(), udpServer);
@@ -369,7 +366,7 @@ public class UdpProxyRuleManager {
                         clonedRule, cryptoService, cryptoPacketStore, dataReportService, transcodeEnabled, transcodeService,
                         clientValidationService, perPacketClientValidationEnabled, trafficReconciliationService,
                         clientRelayProperties.isRejectDirectUdp(), securePublishIngressService, udpFileAssemblyService,
-                        ackProxyLearningService, diagnosticLogReporter);
+                        diagnosticLogReporter);
                 server.start();
                 if (server.isRunning()) {
                     servers.add(server);

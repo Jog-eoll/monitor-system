@@ -218,6 +218,13 @@ public class SecureDeliveryServiceImpl implements SecureDeliveryService {
 
             // 5. 加密并投递
             byte[] encrypted = cryptoService.encrypt(envelopeBytes);
+            if (encrypted == null) {
+                status.setStatus("FAILED");
+                status.setMessage("encrypt failed: " + cryptoService.getSvacModuleStatus());
+                log.warn("[安全投递] 加密失败，停止投递: taskId={}, requestId={}, cryptoStatus={}",
+                        taskId, request.getRequestId(), cryptoService.getSvacModuleStatus());
+                return;
+            }
             deliverToTerminal(taskId, request.getRequestId(), encrypted, status);
 
         } catch (Exception e) {
@@ -309,6 +316,9 @@ public class SecureDeliveryServiceImpl implements SecureDeliveryService {
         }
         byte[] encrypted = Base64.getDecoder().decode(request.getEncryptedPackage());
         byte[] plain = cryptoService.decrypt(encrypted);
+        if (plain == null) {
+            throw new IllegalArgumentException("任务包解密失败: " + cryptoService.getSvacModuleStatus());
+        }
         SecureDeliveryTaskRequest plainRequest = JSON.parseObject(
                 new String(plain, StandardCharsets.UTF_8), SecureDeliveryTaskRequest.class);
         if (plainRequest == null) {

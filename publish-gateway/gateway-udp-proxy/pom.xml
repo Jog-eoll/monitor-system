@@ -131,12 +131,13 @@
             <version>2.0.23</version>
         </dependency>
 
-        <!-- 标准化模块：对接 Sigma 信发系统的消息封装、capability 映射、来源校验适配器 -->
+        <!-- 标准化模块：发布任务标准包 DTO 契约 -->
         <dependency>
             <groupId>com.publishgateway</groupId>
             <artifactId>gateway-standardization</artifactId>
             <version>1.0.0</version>
         </dependency>
+
 
         <!-- 设备自动注册客户端 -->
         <dependency>

@@ -6,9 +6,11 @@ import com.publishgateway.udpproxy.common.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
+import javax.annotation.PostConstruct;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -30,6 +32,16 @@ public class TerminalDeviceRegisterController {
 
     @Value("${terminal-device-register.read-timeout-ms:10000}")
     private int readTimeoutMs;
+
+    private RestTemplate restTemplate;
+
+    @PostConstruct
+    public void init() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(connectTimeoutMs);
+        factory.setReadTimeout(readTimeoutMs);
+        restTemplate = new RestTemplate(factory);
+    }
 
     /**
      * 代理终端设备注册 —— 接收平台请求，转发到解密网关 POST /api/devices/register。
@@ -85,7 +97,6 @@ public class TerminalDeviceRegisterController {
         String targetUrl = terminalGatewayUrl + "/api/devices/register";
 
         try {
-            RestTemplate restTemplate = new RestTemplate();
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(terminalBody, headers);

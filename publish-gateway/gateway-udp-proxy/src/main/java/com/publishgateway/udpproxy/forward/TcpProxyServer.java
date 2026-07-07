@@ -389,6 +389,12 @@ public class TcpProxyServer {
                 byte[] data = new byte[dataLength];
                 buf.readBytes(data);
 
+                if (!cryptoService.isSvacModuleReady()) {
+                    log.warn("publish gateway SVAC module unavailable, drop TCP packet: source={}, status={}",
+                            sender, cryptoService.getSvacModuleStatus());
+                    return;
+                }
+
                 log.info("==========================================");
                 log.info("  【发布网关TCP】收到数据");
                 log.info("  来源: {}", sender);

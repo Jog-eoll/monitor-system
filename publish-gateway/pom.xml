@@ -17,7 +17,6 @@
     <packaging>pom</packaging>
     
     <modules>
-        <module>../monitor-platform/monitor-platform-mqtt-core</module>
         <module>gateway-standardization</module>
         <module>gateway-udp-proxy</module>
     </modules>

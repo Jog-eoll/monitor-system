@@ -3,8 +3,6 @@ package com.publishgateway.udpproxy.forward;
 import com.publishgateway.udpproxy.assembly.FileAssemblyRequest;
 import com.publishgateway.udpproxy.assembly.FileAssemblyResult;
 import com.publishgateway.udpproxy.assembly.UdpFileAssemblyService;
-import com.publishgateway.udpproxy.ack.AckProxyLearningService;
-import com.publishgateway.udpproxy.ack.AckProxyRequestDecision;
 import com.publishgateway.udpproxy.entity.UdpProxyRule;
 import com.publishgateway.udpproxy.entity.message.Message;
 import com.publishgateway.udpproxy.entity.message.MessageBuilder;
@@ -58,7 +56,6 @@ public class UdpProxyServer {
     private final boolean rejectDirectUdp;
     private final SecurePublishIngressService securePublishIngressService;
     private final UdpFileAssemblyService udpFileAssemblyService;
-    private final AckProxyLearningService ackProxyLearningService;
     private final DiagnosticLogReporter diagnosticLogReporter;
     private EventLoopGroup group;
     private Channel serverChannel;
@@ -92,7 +89,6 @@ public class UdpProxyServer {
                           boolean rejectDirectUdp,
                           SecurePublishIngressService securePublishIngressService,
                           UdpFileAssemblyService udpFileAssemblyService,
-                          AckProxyLearningService ackProxyLearningService,
                           DiagnosticLogReporter diagnosticLogReporter) {
         this.rule                     = rule;
         this.cryptoService            = cryptoService;
@@ -106,7 +102,6 @@ public class UdpProxyServer {
         this.rejectDirectUdp = rejectDirectUdp;
         this.securePublishIngressService = securePublishIngressService;
         this.udpFileAssemblyService = udpFileAssemblyService;
-        this.ackProxyLearningService = ackProxyLearningService;
         this.diagnosticLogReporter = diagnosticLogReporter;
     }
 
@@ -313,6 +308,14 @@ public class UdpProxyServer {
                         senderIp, sender.getPort(), effectiveRule.getRuleId(), effectiveRule.getListenPort());
                 return;
             }
+            if (!cryptoService.isSvacModuleReady()) {
+                log.warn("publish gateway SVAC module unavailable, drop UDP packet: source={}, status={}",
+                        sender, cryptoService.getSvacModuleStatus());
+                reportFailure("SVAC_MODULE_UNAVAILABLE", effectiveRule, senderIp, sender.getPort(),
+                        "svac module unavailable", "SVAC_MODULE_UNAVAILABLE",
+                        cryptoService.getSvacModuleStatus());
+                return;
+            }
             log.debug("==========================================");
             log.debug("  【发布网关】收到数据包");
             log.debug("  来源: {}", sender);
@@ -410,16 +413,6 @@ public class UdpProxyServer {
             if (needEncrypt && cryptoService.isSvacMode()) {
                 String rawTargetIp = effectiveRule.getTerminalGatewayIp();
                 int rawTargetPort = effectiveRule.getTerminalGatewayPort();
-                if (ackProxyLearningService != null) {
-                    AckProxyRequestDecision decision = ackProxyLearningService.recordRequest("DIRECT_UDP", effectiveRule,
-                            senderIp, sender.getPort(), rawTargetIp, rawTargetPort, data);
-                    if (decision != null && decision.isProxyAckSent()) {
-                        ByteBuf ackBuf = Unpooled.copiedBuffer(decision.getProxyAck());
-                        serverChannel.writeAndFlush(new DatagramPacket(ackBuf, sender));
-                        log.debug("[ACK-Proxy] sent simulated ACK to Sigma: ruleId={}, source={}, bytes={}",
-                                effectiveRule.getRuleId(), sender, decision.getProxyAck().length);
-                    }
-                }
 
                 byte[] encrypted = cryptoService.encrypt(data);
                 if (encrypted == null) {
@@ -459,16 +452,6 @@ public class UdpProxyServer {
             // 确定转发目标（来自 effectiveRule，确保合并链路路由到各自的终端网关端口）
             String targetIp   = needEncrypt ? effectiveRule.getTerminalGatewayIp() : effectiveRule.getTargetIp();
             int    targetPort = needEncrypt ? effectiveRule.getTerminalGatewayPort() : effectiveRule.getTargetPort();
-            if (ackProxyLearningService != null) {
-                AckProxyRequestDecision decision = ackProxyLearningService.recordRequest("DIRECT_UDP", effectiveRule,
-                        senderIp, sender.getPort(), targetIp, targetPort, data);
-                if (decision != null && decision.isProxyAckSent()) {
-                    ByteBuf ackBuf = Unpooled.copiedBuffer(decision.getProxyAck());
-                    serverChannel.writeAndFlush(new DatagramPacket(ackBuf, sender));
-                    log.debug("[ACK-Proxy] sent simulated ACK to Sigma: ruleId={}, source={}, bytes={}",
-                            effectiveRule.getRuleId(), sender, decision.getProxyAck().length);
-                }
-            }
 
             // 获取或创建到目标的UDP通道（每个分片使用同一通道发出）
             Channel outboundChannel = clientChannels.get(senderKey);
@@ -549,16 +532,6 @@ public class UdpProxyServer {
                             log.debug("【发布网关】收到响应 - 长度: {} 字节，转发回: {}",
                                     finalResponse.length, sender);
 
-                            if (ackProxyLearningService != null) {
-                                boolean suppressRealAck = ackProxyLearningService.recordResponse("DIRECT_UDP", effectiveRule,
-                                        sender.getAddress().getHostAddress(), sender.getPort(),
-                                        targetIp, targetPort, responsePacket.sender(), finalResponse);
-                                if (suppressRealAck) {
-                                    log.debug("[ACK-Proxy] suppress real ACK after simulated ACK: ruleId={}, source={}, bytes={}",
-                                            effectiveRule.getRuleId(), sender, finalResponse.length);
-                                    return;
-                                }
-                            }
 
                             ByteBuf buf = Unpooled.copiedBuffer(finalResponse);
                             DatagramPacket replyPacket = new DatagramPacket(buf, sender);

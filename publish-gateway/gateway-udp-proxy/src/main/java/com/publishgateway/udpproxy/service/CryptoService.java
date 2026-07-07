@@ -26,4 +26,16 @@ public interface CryptoService {
     default boolean isSvacMode() {
         return false;
     }
+
+    /**
+     * Independent physical SVAC USB module gate.
+     * Default keeps existing mock and non-gated behavior.
+     */
+    default boolean isSvacModuleReady() {
+        return true;
+    }
+
+    default String getSvacModuleStatus() {
+        return "DISABLED";
+    }
 }

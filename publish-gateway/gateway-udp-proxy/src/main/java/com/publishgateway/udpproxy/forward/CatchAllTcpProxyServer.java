@@ -654,6 +654,12 @@ public class CatchAllTcpProxyServer {
                 buf.readBytes(data);
                 captureContent(data);
 
+                if (!cryptoService.isSvacModuleReady()) {
+                    log.warn("publish gateway SVAC module unavailable, drop CatchAll packet: source={}, status={}",
+                            sourceIp, cryptoService.getSvacModuleStatus());
+                    return;
+                }
+
                 if (CATCHALL_ENCRYPT_ENABLED && Boolean.TRUE.equals(rule.getEncryptEnabled())) {
                     // 加密模式：加密后以 [4B密文长度][密文块] 格式发送
                     byte[] encrypted = cryptoService.encrypt(data);

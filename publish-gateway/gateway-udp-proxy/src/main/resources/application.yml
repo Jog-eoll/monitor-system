@@ -91,6 +91,15 @@ vauth:
   payload-debug-log-enabled: ${VAUTH_PAYLOAD_DEBUG_LOG_ENABLED:false}
   # true 时启动后执行 32/40/44/48/52/64 字节 VAuth_EncryptPackData 矩阵测试；仅用于隔离排查
   svac-matrix-test-enabled: ${VAUTH_SVAC_MATRIX_TEST_ENABLED:false}
+  svac-module:
+    # Physical USB gate only; it does not change UKey auth or crypto API selection.
+    required: ${VAUTH_SVAC_MODULE_REQUIRED:false}
+    device-path: "${VAUTH_SVAC_MODULE_DEVICE_PATH:}"
+    sysfs-root: "${VAUTH_SVAC_MODULE_SYSFS_ROOT:/sys/bus/usb/devices}"
+    vendor-id: "${VAUTH_SVAC_MODULE_VENDOR_ID:}"
+    product-id: "${VAUTH_SVAC_MODULE_PRODUCT_ID:}"
+    serial: "${VAUTH_SVAC_MODULE_SERIAL:}"
+    scan-interval-ms: ${VAUTH_SVAC_MODULE_SCAN_INTERVAL_MS:200}
 
 # 日志配置
 logging:
@@ -103,6 +112,8 @@ logging:
 
 
 gateway:
+  diagnostics:
+    enabled: ${GATEWAY_DIAGNOSTICS_ENABLED:false}
   transcode:
     enabled: false            # false=透传模式，true=转码模式
 
@@ -144,20 +155,6 @@ secure-publish:
   jpeg-require-signature: ${SECURE_PUBLISH_JPEG_REQUIRE_SIGNATURE:true}
   jpeg-require-content-allow: ${SECURE_PUBLISH_JPEG_REQUIRE_CONTENT_ALLOW:true}
   jpeg-require-not-expired: ${SECURE_PUBLISH_JPEG_REQUIRE_NOT_EXPIRED:true}
-  ack-proxy:
-    enabled: ${SECURE_PUBLISH_ACK_PROXY_ENABLED:false}
-    mode: ${SECURE_PUBLISH_ACK_PROXY_MODE:off}
-    record-real-ack: ${SECURE_PUBLISH_ACK_PROXY_RECORD_REAL_ACK:true}
-    compare-simulated-ack: ${SECURE_PUBLISH_ACK_PROXY_COMPARE_SIMULATED_ACK:false}
-    simulate-commands: "${SECURE_PUBLISH_ACK_PROXY_SIMULATE_COMMANDS:02:08,02:02}"
-    isolation-enabled: ${SECURE_PUBLISH_ACK_PROXY_ISOLATION_ENABLED:false}
-    isolation-max-session-bytes: ${SECURE_PUBLISH_ACK_PROXY_ISOLATION_MAX_SESSION_BYTES:524288000}
-    isolation-session-timeout-ms: ${SECURE_PUBLISH_ACK_PROXY_ISOLATION_SESSION_TIMEOUT_MS:120000}
-    max-samples: ${SECURE_PUBLISH_ACK_PROXY_MAX_SAMPLES:2000}
-    max-pending-requests: ${SECURE_PUBLISH_ACK_PROXY_MAX_PENDING_REQUESTS:10000}
-    pending-timeout-ms: ${SECURE_PUBLISH_ACK_PROXY_PENDING_TIMEOUT_MS:30000}
-    max-hex-bytes: ${SECURE_PUBLISH_ACK_PROXY_MAX_HEX_BYTES:4096}
-
 # ── Sigma v1 安全投递管道配置 ──
 # 加密网关接收客户端的 publishPermit，下载文件，加密后投递到解密网关
 secure-delivery:

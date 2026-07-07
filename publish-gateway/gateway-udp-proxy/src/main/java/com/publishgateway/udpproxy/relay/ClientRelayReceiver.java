@@ -4,9 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.publishgateway.udpproxy.assembly.FileAssemblyRequest;
 import com.publishgateway.udpproxy.assembly.FileAssemblyResult;
 import com.publishgateway.udpproxy.assembly.UdpFileAssemblyService;
-import com.publishgateway.udpproxy.ack.AckIsolationDecision;
-import com.publishgateway.udpproxy.ack.AckProxyLearningService;
-import com.publishgateway.udpproxy.ack.AckProxyRequestDecision;
 import com.publishgateway.udpproxy.config.ClientRelayProperties;
 import com.publishgateway.udpproxy.entity.UdpProxyRule;
 import com.publishgateway.udpproxy.entity.message.Message;
@@ -87,8 +84,6 @@ public class ClientRelayReceiver implements ApplicationRunner, Ordered {
     @Resource
     private UdpFileAssemblyService udpFileAssemblyService;
 
-    @Resource
-    private AckProxyLearningService ackProxyLearningService;
 
     @Value("${gateway.transcode.enabled:false}")
     private boolean transcodeEnabled;
@@ -339,55 +334,13 @@ public class ClientRelayReceiver implements ApplicationRunner, Ordered {
         String channelKey = relayClient.getAddress().getHostAddress() + ":" + relayClient.getPort()
                 + "|" + sourceIp + ":" + relayPacket.getOriginalSrcPort()
                 + "->" + targetIp + ":" + targetPort;
-        if (ackProxyLearningService != null) {
-            AckIsolationDecision isolationDecision = ackProxyLearningService.isolateRequest("CLIENT_RELAY_UDP", rule,
-                    sourceIp, relayPacket.getOriginalSrcPort(), targetIp, targetPort, data);
-            if (isolationDecision != null && isolationDecision.isHold()) {
-                if (isolationDecision.isProxyAckSent() && isolationDecision.getProxyAck() != null) {
-                    writeRelayResponse(ctx, relayClient, relayPacket, isolationDecision.getProxyAck());
-                }
-                log.debug("[ACK-Isolation] hold relay packet: ruleId={}, src={}:{}, reason={}",
-                        rule.getRuleId(), sourceIp, relayPacket.getOriginalSrcPort(), isolationDecision.getReason());
-                if (assemblyRejected) {
-                    int rejected = rejectIsolatedRelay(rule, relayPacket, sourceIp, targetIp, targetPort,
-                            securePublishReason(assemblyResult));
-                    packetsRejected.incrementAndGet();
-                    log.warn("[ACK-Isolation] rejected held relay session after SecurePublish verify failed: ruleId={}, packets={}, reason={}",
-                            rule.getRuleId(), rejected, securePublishReason(assemblyResult));
-                    return;
-                }
-                if (assemblyAllowed) {
-                    int released = releaseIsolatedRelay(ctx, relayClient, rule, relayPacket, sourceIp,
-                            targetIp, targetPort, channelKey, needEncrypt);
-                    log.info("[ACK-Isolation] released held relay session after SecurePublish verify passed: ruleId={}, packets={}",
-                            rule.getRuleId(), released);
-                    return;
-                }
-                return;
-            }
-        }
         if (assemblyRejected) {
-            int rejected = rejectIsolatedRelay(rule, relayPacket, sourceIp, targetIp, targetPort,
-                    securePublishReason(assemblyResult));
             packetsRejected.incrementAndGet();
-            log.warn("[ACK-Isolation] block relay packet after SecurePublish verify failed: ruleId={}, cachedPackets={}, reason={}",
-                    rule.getRuleId(), rejected, securePublishReason(assemblyResult));
+            log.warn("[SecurePublish] block relay packet after verify failed: ruleId={}, reason={}",
+                    rule.getRuleId(), securePublishReason(assemblyResult));
             return;
         }
-        if (assemblyAllowed) {
-            releaseIsolatedRelay(ctx, relayClient, rule, relayPacket, sourceIp,
-                    targetIp, targetPort, channelKey, needEncrypt);
-        }
         reportRelayPayload(rule, data, sourceIp);
-        if (ackProxyLearningService != null) {
-            AckProxyRequestDecision decision = ackProxyLearningService.recordRequest("CLIENT_RELAY_UDP", rule,
-                    sourceIp, relayPacket.getOriginalSrcPort(), targetIp, targetPort, data);
-            if (decision != null && decision.isProxyAckSent()) {
-                writeRelayResponse(ctx, relayClient, relayPacket, decision.getProxyAck());
-                log.debug("[ACK-Proxy] sent simulated relay ACK: ruleId={}, src={}:{}, bytes={}",
-                        rule.getRuleId(), sourceIp, relayPacket.getOriginalSrcPort(), decision.getProxyAck().length);
-            }
-        }
         byte[] bodyData = transcodeService != null
                 ? transcodeService.transcode(data, TranscodeService.DataType.TEXT)
                 : data;
@@ -489,131 +442,14 @@ public class ClientRelayReceiver implements ApplicationRunner, Ordered {
                 sourceIp, rule.getManufacturer(), rule.getTargetIp(), rule.getTargetPort());
     }
 
-    private int releaseIsolatedRelay(ChannelHandlerContext ctx,
-                                     InetSocketAddress relayClient,
-                                     UdpProxyRule rule,
-                                     RelayPacketCodec.RelayPacket relayPacket,
-                                     String sourceIp,
-                                     String targetIp,
-                                     int targetPort,
-                                     String channelKey,
-                                     boolean needEncrypt) {
-        if (ackProxyLearningService == null || rule == null || relayPacket == null || ctx == null) {
-            return 0;
-        }
-        List<byte[]> packets = ackProxyLearningService.drainIsolation("CLIENT_RELAY_UDP", rule,
-                sourceIp, relayPacket.getOriginalSrcPort(), targetIp, targetPort);
-        if (packets.isEmpty()) {
-            return 0;
-        }
-        replayRelayPayloads(ctx, channelKey, packets, targetIp, targetPort, relayClient, relayPacket, rule, needEncrypt);
-        return packets.size();
-    }
 
-    private int rejectIsolatedRelay(UdpProxyRule rule,
-                                    RelayPacketCodec.RelayPacket relayPacket,
-                                    String sourceIp,
-                                    String targetIp,
-                                    int targetPort,
-                                    String reason) {
-        if (ackProxyLearningService == null || rule == null || relayPacket == null) {
-            return 0;
-        }
-        return ackProxyLearningService.rejectIsolation("CLIENT_RELAY_UDP", rule,
-                sourceIp, relayPacket.getOriginalSrcPort(), targetIp, targetPort, reason);
-    }
 
-    private void replayRelayPayloads(ChannelHandlerContext ctx,
-                                     String channelKey,
-                                     List<byte[]> packets,
-                                     String targetIp,
-                                     int targetPort,
-                                     InetSocketAddress relayClient,
-                                     RelayPacketCodec.RelayPacket relayPacket,
-                                     UdpProxyRule rule,
-                                     boolean needEncrypt) {
-        Channel outbound = outboundChannels.get(channelKey);
-        if (outbound == null || !outbound.isActive()) {
-            createReplayChannelAndForward(ctx, channelKey, packets, targetIp, targetPort, relayClient,
-                    relayPacket, rule, needEncrypt);
-            return;
-        }
-        for (byte[] packet : packets) {
-            forwardRelayPacketOnChannel(outbound, packet, targetIp, targetPort, relayPacket, rule, needEncrypt);
-        }
-    }
 
-    private void createReplayChannelAndForward(ChannelHandlerContext ctx,
-                                               String channelKey,
-                                               List<byte[]> packets,
-                                               String targetIp,
-                                               int targetPort,
-                                               InetSocketAddress relayClient,
-                                               RelayPacketCodec.RelayPacket relayPacket,
-                                               UdpProxyRule rule,
-                                               boolean needEncrypt) {
-        Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(ctx.channel().eventLoop())
-                .channel(NioDatagramChannel.class)
-                .handler(new SimpleChannelInboundHandler<DatagramPacket>() {
-                    @Override
-                    protected void channelRead0(ChannelHandlerContext outboundCtx, DatagramPacket packet) {
-                        handleTargetResponse(ctx, packet, relayClient, relayPacket, rule);
-                    }
-                });
-        bootstrap.bind(0).addListener((ChannelFutureListener) future -> {
-            if (future.isSuccess()) {
-                Channel channel = future.channel();
-                outboundChannels.put(channelKey, channel);
-                for (byte[] packet : packets) {
-                    forwardRelayPacketOnChannel(channel, packet, targetIp, targetPort, relayPacket, rule, needEncrypt);
-                }
-            } else {
-                log.warn("[ACK-Isolation] create replay channel failed: {}", future.cause().getMessage());
-            }
-        });
-    }
 
-    private void forwardRelayPacketOnChannel(Channel outbound,
-                                             byte[] data,
-                                             String targetIp,
-                                             int targetPort,
-                                             RelayPacketCodec.RelayPacket relayPacket,
-                                             UdpProxyRule rule,
-                                             boolean needEncrypt) {
-        if (outbound == null || data == null || data.length == 0 || relayPacket == null || rule == null) {
-            return;
-        }
-        reportRelayPayload(rule, data, relayPacket.getOriginalSrcIp());
-        ackProxyLearningService.recordReplayRequestForSuppression("CLIENT_RELAY_UDP", rule,
-                relayPacket.getOriginalSrcIp(), relayPacket.getOriginalSrcPort(), targetIp, targetPort, data);
-        byte[] bodyData = transcodeService != null
-                ? transcodeService.transcode(data, TranscodeService.DataType.TEXT)
-                : data;
-        List<Message> messages = MessageBuilder.buildForUdp(
-                bodyData,
-                transcodeEnabled,
-                MessageHeader.MSG_TYPE_PASSTHROUGH,
-                MessageHeader.ENCODING_NONE);
-        for (Message msg : messages) {
-            byte[] finalData = msg.toBytes();
-            if (needEncrypt) {
-                byte[] encrypted = cryptoService.encrypt(finalData);
-                if (encrypted == null) {
-                    log.warn("[ACK-Isolation] replay encrypt failed, ruleId={}", rule.getRuleId());
-                    continue;
-                }
-                if (cryptoPacketStore != null) {
-                    cryptoPacketStore.saveMessage(
-                            rule.getRuleId(), rule.getChainId(), "CLIENT_RELAY_UDP",
-                            relayPacket.getOriginalSrcIp(), targetIp, targetPort,
-                            msg.getHeader(), finalData, encrypted);
-                }
-                finalData = encrypted;
-            }
-            forward(outbound, finalData, targetIp, targetPort);
-        }
-    }
+
+
+
+
 
     private void createAndForward(ChannelHandlerContext ctx, String channelKey,
                                   byte[] data, String targetIp, int targetPort,
@@ -667,17 +503,6 @@ public class ClientRelayReceiver implements ApplicationRunner, Ordered {
                     && rule.getTerminalGatewayPort() != null;
             String targetIp = needEncrypt ? rule.getTerminalGatewayIp() : rule.getTargetIp();
             int targetPort = needEncrypt ? rule.getTerminalGatewayPort() : rule.getTargetPort();
-            if (ackProxyLearningService != null) {
-                boolean suppressRealAck = ackProxyLearningService.recordResponse("CLIENT_RELAY_UDP", rule,
-                        requestPacket.getOriginalSrcIp(), requestPacket.getOriginalSrcPort(),
-                        targetIp, targetPort, packet.sender(), finalResponse);
-                if (suppressRealAck) {
-                    log.debug("[ACK-Proxy] suppress real relay ACK after simulated ACK: ruleId={}, src={}:{}, bytes={}",
-                            rule.getRuleId(), requestPacket.getOriginalSrcIp(),
-                            requestPacket.getOriginalSrcPort(), finalResponse.length);
-                    return;
-                }
-            }
 
             writeRelayResponse(inboundCtx, relayClient, requestPacket, finalResponse);
             responsesRelayed.incrementAndGet();

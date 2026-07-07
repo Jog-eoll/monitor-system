@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -14,7 +14,7 @@
     <artifactId>gateway-standardization</artifactId>
     <version>1.0.0</version>
     <name>gateway-standardization</name>
-    <description>发布网关标准化模块 - 对接 Sigma 信发系统的标准化消息封装、capability 映射、来源校验适配器。独立模块，方便后续对接解密网关。</description>
+    <description>Publish gateway delivery contract DTO module.</description>
 
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
@@ -23,31 +23,12 @@
     </properties>
 
     <dependencies>
-        <!-- Spring Boot Web（提供 RestTemplate 等） -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
 
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
-        </dependency>
-
-        <!-- FastJSON2 -->
-        <dependency>
-            <groupId>com.alibaba.fastjson2</groupId>
-            <artifactId>fastjson2</artifactId>
-            <version>2.0.23</version>
-        </dependency>
-
-        <!-- Hutool HTTP -->
-        <dependency>
-            <groupId>cn.hutool</groupId>
-            <artifactId>hutool-http</artifactId>
-            <version>5.8.16</version>
         </dependency>
     </dependencies>
 

@@ -3,6 +3,7 @@ package com.publishgateway.udpproxy.controller;
 import com.publishgateway.udpproxy.assembly.AssembledFile;
 import com.publishgateway.udpproxy.assembly.AssembledFileStore;
 import com.publishgateway.udpproxy.common.Result;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -24,6 +25,7 @@ import java.util.List;
  * 重组文件查看接口。
  */
 @RestController
+@ConditionalOnProperty(name = "gateway.diagnostics.enabled", havingValue = "true")
 @RequestMapping("/assembly/files")
 public class AssembledFileController {
 

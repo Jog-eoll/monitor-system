@@ -12,6 +12,7 @@ import com.publishgateway.udpproxy.service.TrafficReconciliationService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -53,6 +54,9 @@ public class UdpProxyConfigController {
     @Resource
     private ClientRelayReceiver clientRelayReceiver;
 
+    @Value("${gateway.diagnostics.enabled:false}")
+    private boolean diagnosticsEnabled;
+
 
     /**
      * 查询最近收到的原始UDP包
@@ -61,6 +65,9 @@ public class UdpProxyConfigController {
     @GetMapping("/raw-packets/latest")
     public Result<?> getLatestRawPackets(
             @RequestParam(defaultValue = "20") int limit) {
+        if (!diagnosticsEnabled) {
+            return diagnosticsDisabled();
+        }
         int safeLimit = Math.min(Math.max(limit, 1), 200);
         java.util.List<RawPacketStore.RawPacketRecord> records = rawPacketStore.getLatest(safeLimit);
         java.util.Map<String, Object> data = new java.util.HashMap<>();
@@ -76,12 +83,18 @@ public class UdpProxyConfigController {
      */
     @PostMapping("/raw-packets/clear")
     public Result<String> clearRawPackets() {
+        if (!diagnosticsEnabled) {
+            return diagnosticsDisabled();
+        }
         rawPacketStore.clear();
         log.info("【原始包缓存】已手动清空");
         return Result.success("缓存已清空", null);
     }
     @GetMapping("/crypto-packets/latest")
     public Result<?> getLatestCryptoPackets(@RequestParam(defaultValue = "20") int limit) {
+        if (!diagnosticsEnabled) {
+            return diagnosticsDisabled();
+        }
         int safeLimit = Math.min(Math.max(limit, 1), 3000);
         java.util.List<CryptoPacketStore.CryptoPacketRecord> records = cryptoPacketStore.getLatest(safeLimit);
         java.util.Map<String, Object> data = new java.util.HashMap<>();
@@ -94,6 +107,9 @@ public class UdpProxyConfigController {
 
     @PostMapping("/crypto-packets/clear")
     public Result<String> clearCryptoPackets() {
+        if (!diagnosticsEnabled) {
+            return diagnosticsDisabled();
+        }
         cryptoPacketStore.clear();
         log.info("[crypto-packet-cache] cleared");
         return Result.success("cache cleared", null);
@@ -101,6 +117,9 @@ public class UdpProxyConfigController {
 
     @GetMapping("/image-payloads/latest")
     public Result<?> getLatestImagePayloads(@RequestParam(defaultValue = "20") int limit) {
+        if (!diagnosticsEnabled) {
+            return diagnosticsDisabled();
+        }
         int safeLimit = Math.min(Math.max(limit, 1), 100);
         java.util.List<ImagePayloadStore.ImagePayloadRecord> records = imagePayloadStore.getLatest(safeLimit);
         java.util.Map<String, Object> data = new java.util.HashMap<>();
@@ -113,6 +132,9 @@ public class UdpProxyConfigController {
 
     @PostMapping("/image-payloads/clear")
     public Result<String> clearImagePayloads() {
+        if (!diagnosticsEnabled) {
+            return diagnosticsDisabled();
+        }
         imagePayloadStore.clear();
         log.info("[image-payload-cache] cleared");
         return Result.success("cache cleared", null);
@@ -120,18 +142,31 @@ public class UdpProxyConfigController {
 
     @GetMapping("/security/traffic-reconcile")
     public Result<?> getTrafficReconcileStats(@RequestParam(defaultValue = "100") int limit) {
+        if (!diagnosticsEnabled) {
+            return diagnosticsDisabled();
+        }
         return Result.success("查询成功", trafficReconciliationService.querySnapshots(limit));
     }
 
     @PostMapping("/security/traffic-reconcile/clear")
     public Result<String> clearTrafficReconcileStats() {
+        if (!diagnosticsEnabled) {
+            return diagnosticsDisabled();
+        }
         trafficReconciliationService.clear();
         return Result.success("流量对账统计已清空", null);
     }
 
     @GetMapping("/client-relay/status")
     public Result<?> getClientRelayStatus() {
+        if (!diagnosticsEnabled) {
+            return diagnosticsDisabled();
+        }
         return Result.success("查询成功", clientRelayReceiver.getStatus());
+    }
+
+    private <T> Result<T> diagnosticsDisabled() {
+        return Result.error(404, "diagnostics disabled");
     }
 
     @PostMapping("/config")

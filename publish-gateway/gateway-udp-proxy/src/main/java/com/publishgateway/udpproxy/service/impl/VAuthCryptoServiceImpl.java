@@ -8,6 +8,7 @@ import com.publishgateway.udpproxy.jna.VAuthPackBridgeLibrary;
 import com.publishgateway.udpproxy.jna.VAuthSDKLibrary;
 import com.publishgateway.udpproxy.service.CryptoService;
 import com.publishgateway.udpproxy.service.SignedEnvelopeCryptoService;
+import com.publishgateway.udpproxy.service.SvacModulePresenceGuard;
 import com.publishgateway.udpproxy.service.SvacFileCryptoService;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
@@ -74,6 +75,9 @@ public class VAuthCryptoServiceImpl implements CryptoService, SignedEnvelopeCryp
 
     @Resource
     private VAuthConfig vAuthConfig;
+
+    @Resource
+    private SvacModulePresenceGuard svacModulePresenceGuard;
 
     /** SDK 实例（JNA 直接调用） */
     private VAuthSDKLibrary sdk;
@@ -149,9 +153,19 @@ public class VAuthCryptoServiceImpl implements CryptoService, SignedEnvelopeCryp
     }
 
     @Override
+    public boolean isSvacModuleReady() {
+        return svacModulePresenceGuard.isReady();
+    }
+
+    @Override
+    public String getSvacModuleStatus() {
+        return svacModulePresenceGuard.getStatus();
+    }
+
+    @Override
     public boolean isReady() {
         authenticateIfNecessary(false);
-        return authenticated && deviceHandle >= 0;
+        return authenticated && deviceHandle >= 0 && svacModulePresenceGuard.isReady();
     }
 
     @Override
@@ -168,6 +182,9 @@ public class VAuthCryptoServiceImpl implements CryptoService, SignedEnvelopeCryp
     public synchronized byte[] encryptPackData(byte[] data) {
         if (data == null || data.length == 0) {
             return data;
+        }
+        if (!svacModulePresenceGuard.ensureReady("encryptPackData")) {
+            return null;
         }
         authenticateIfNecessary(false);
         if (!authenticated || deviceHandle < 0) {
@@ -186,6 +203,9 @@ public class VAuthCryptoServiceImpl implements CryptoService, SignedEnvelopeCryp
     public synchronized byte[] decryptPackData(byte[] data) {
         if (data == null || data.length == 0) {
             return data;
+        }
+        if (!svacModulePresenceGuard.ensureReady("decryptPackData")) {
+            return null;
         }
         authenticateIfNecessary(false);
         if (!authenticated || deviceHandle < 0) {
@@ -213,6 +233,9 @@ public class VAuthCryptoServiceImpl implements CryptoService, SignedEnvelopeCryp
     public synchronized byte[] encrypt(byte[] data) {
         if (data == null || data.length == 0) {
             return data;
+        }
+        if (!svacModulePresenceGuard.ensureReady("encrypt")) {
+            return null;
         }
         authenticateIfNecessary(false);
         if (!authenticated || deviceHandle < 0) {
@@ -293,6 +316,9 @@ public class VAuthCryptoServiceImpl implements CryptoService, SignedEnvelopeCryp
     public synchronized byte[] decrypt(byte[] data) {
         if (data == null || data.length == 0) {
             return data;
+        }
+        if (!svacModulePresenceGuard.ensureReady("decrypt")) {
+            return null;
         }
         authenticateIfNecessary(false);
         if (!authenticated || deviceHandle < 0) {
@@ -384,6 +410,9 @@ public class VAuthCryptoServiceImpl implements CryptoService, SignedEnvelopeCryp
     private byte[] doFileDataCrypto(String operation, byte[] data, boolean flag) {
         if (data == null || data.length == 0) {
             return data;
+        }
+        if (!svacModulePresenceGuard.ensureReady("file-" + operation)) {
+            return null;
         }
         authenticateIfNecessary(false);
         if (!authenticated || deviceHandle < 0) {
@@ -536,6 +565,9 @@ public class VAuthCryptoServiceImpl implements CryptoService, SignedEnvelopeCryp
     private synchronized byte[] processEnvelope(byte[] data, boolean sign) {
         if (data == null || data.length == 0) {
             return data;
+        }
+        if (!svacModulePresenceGuard.ensureReady(sign ? "signEnvelope" : "verifyEnvelope")) {
+            return null;
         }
         if (!authenticated || deviceHandle < 0) {
             log.error("{} envelope refused: authenticated={}, handle={}",
