@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * 本地视觉审核模型响应DTO
  * 
- * 对应内网模型: http://127.0.0.1:8080/api/audit/image
+ * 对应内网模型: http://127.0.0.1:21580/api/audit/image/quick
  * 输出格式: 结构化JSON(无需正则解析)
  */
 @Data
@@ -109,6 +109,10 @@ public class LocalAuditResultDTO {
         /** 违规文本 */
         @JSONField(name = "text")
         private String text;
+
+        /** 违规对象或类别名称 */
+        @JSONField(name = "class_name")
+        private String className;
 
         /** 命中的关键词 */
         @JSONField(name = "keyword")

@@ -7,7 +7,9 @@ import com.monitorplatform.common.entity.Result;
 import com.monitorplatform.content.entity.ContentMonitor;
 import com.monitorplatform.content.entity.dto.DetectionRecordQueryDTO;
 import com.monitorplatform.content.entity.dto.QwenDetectionRequestDTO;
+import com.monitorplatform.content.entity.dto.QwenDetectionResultDTO;
 import com.monitorplatform.content.service.ContentDetectionService;
+import com.monitorplatform.content.service.LocalAuditService;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import lombok.Data;
@@ -25,7 +27,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Base64;
 import java.util.UUID;
 
 @Slf4j
@@ -37,6 +38,9 @@ public class ContentDetectionController {
 
     @Autowired
     private ContentDetectionService detectionService;
+
+    @Autowired
+    private LocalAuditService localAuditService;
 
     @Autowired
     private MinioClient minioClient;
@@ -159,28 +163,11 @@ public class ContentDetectionController {
                 return Result.data(response);
             }
 
-            if ("video".equals(contentType)) {
-                // Keep minimal impact: first stage routes videos to manual pre-audit.
-                if (file != null && !file.isEmpty()) {
-                    response.setStoredObject(uploadPreAuditFile(file));
-                }
-                response.setDecision("NEED_MANUAL");
-                response.setReason("VIDEO_REQUIRES_MANUAL");
-                return Result.data(response);
-            }
-
-            QwenDetectionRequestDTO request = new QwenDetectionRequestDTO();
             String businessId = defaultIfBlank(metadata.getAuditId(),
                     "preaudit_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().replace("-", ""));
-            request.setBusinessId(businessId);
-            request.setDeviceId(defaultIfBlank(metadata.getClientId(), "client-pre-audit"));
-            request.setDeviceName(defaultIfBlank(metadata.getClientId(), "client-pre-audit"));
-            request.setSourceIp(metadata.getSourceIp());
-            request.setContentType(contentType);
-            request.setFileName(metadata.getFileName());
-            request.setCaptureTime(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-            request.setDescription("client pre-audit");
+            String clientId = defaultIfBlank(metadata.getClientId(), "client-pre-audit");
 
+            QwenDetectionResultDTO auditResult;
             if ("text".equals(contentType)) {
                 String textContent = metadata.getTextContent();
                 if ((textContent == null || textContent.trim().isEmpty()) && file != null && !file.isEmpty()) {
@@ -191,30 +178,39 @@ public class ContentDetectionController {
                     response.setReason("TEXT_CONTENT_EMPTY");
                     return Result.data(response);
                 }
-                request.setScreenshotBase64(textContent);
+                auditResult = localAuditService.auditText(textContent, businessId, clientId);
+            } else if ("video".equals(contentType)) {
+                if (file == null || file.isEmpty()) {
+                    response.setDecision("NEED_MANUAL");
+                    response.setReason("VIDEO_FILE_EMPTY");
+                    return Result.data(response);
+                }
+                auditResult = localAuditService.auditVideoFile(file, businessId, clientId);
             } else {
                 if (file == null || file.isEmpty()) {
                     response.setDecision("NEED_MANUAL");
                     response.setReason("IMAGE_FILE_EMPTY");
                     return Result.data(response);
                 }
-                request.setScreenshotBase64(Base64.getEncoder().encodeToString(file.getBytes()));
+                auditResult = localAuditService.auditImageFile(file, businessId, clientId);
             }
 
-            ContentMonitor record = detectionService.detectContent(request);
-            response.setRecordId(record.getId());
-            response.setStatus(record.getStatus());
-            response.setIsViolation(record.getIsViolation());
+            response.setStatus(auditResult.getDetectionResult());
+            response.setViolationType(auditResult.getViolationType());
+            response.setRiskLevel(auditResult.getViolationLevel());
+            response.setAuditMessage(auditResult.getReason());
 
-            if ("normal".equalsIgnoreCase(record.getStatus()) && Integer.valueOf(0).equals(record.getIsViolation())) {
+            if ("compliant".equalsIgnoreCase(auditResult.getDetectionResult())) {
                 response.setDecision("PASS");
                 response.setReason("MODEL_APPROVED");
-            } else if ("violation".equalsIgnoreCase(record.getStatus()) || Integer.valueOf(1).equals(record.getIsViolation())) {
+                response.setIsViolation(0);
+            } else if ("violation".equalsIgnoreCase(auditResult.getDetectionResult())) {
                 response.setDecision("REJECT");
-                response.setReason("MODEL_VIOLATION");
+                response.setReason(defaultIfBlank(auditResult.getReason(), "MODEL_VIOLATION"));
+                response.setIsViolation(1);
             } else {
                 response.setDecision("NEED_MANUAL");
-                response.setReason("MODEL_NEED_MANUAL");
+                response.setReason(defaultIfBlank(auditResult.getReason(), "MODEL_NEED_MANUAL"));
             }
             return Result.data(response);
         } catch (Exception e) {
@@ -358,6 +354,9 @@ public class ContentDetectionController {
         private String status;
         private Integer isViolation;
         private String storedObject;
+        private String violationType;
+        private String riskLevel;
+        private String auditMessage;
         private Long syncTimeoutMs = 0L;
     }
 }

@@ -16,8 +16,13 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.Frame;
@@ -27,7 +32,7 @@ import org.bytedeco.javacv.Java2DFrameConverter;
  * 本地视觉审核模型调用服务
  * 
  * 替代原通义千问公网API,实现全流程内网化
- * 模型地址: http://192.168.1.28:8080/api/audit/image
+ * 模型地址: http://127.0.0.1:21580/api/audit/image/quick
  * 
  * 优势:
  * 1. 数据不出内网,安全性更高
@@ -43,15 +48,15 @@ import org.bytedeco.javacv.Java2DFrameConverter;
 public class LocalAuditService {
 
     /** 本地模型审核接口地址 */
-    @Value("${local-audit.image-url:http://192.168.1.28:8080/api/audit/image}")
+    @Value("${local-audit.image-url:http://127.0.0.1:21580/api/audit/image/quick}")
     private String imageUrl;
 
     /** 本地模型文本审核接口地址(如有) */
-    @Value("${local-audit.text-url:http://192.168.1.28:8080/api/audit/text}")
+    @Value("${local-audit.text-url:http://127.0.0.1:21580/api/audit/text}")
     private String textUrl;
 
     /** 本地模型视频审核接口地址 */
-    @Value("${local-audit.video-url:http://192.168.1.28:8080/api/audit/video}")
+    @Value("${local-audit.video-url:http://127.0.0.1:21580/api/audit/video/quick}")
     private String videoUrl;
 
     /** 视频抽帧间隔(秒) */
@@ -87,6 +92,29 @@ public class LocalAuditService {
 
     @Value("${minio.bucket-name:monitor-content}")
     private String minioBucketName;
+
+    @Value("${local-audit.auth-mode:none}")
+    private String authMode;
+
+    @Value("${local-audit.auth-token:}")
+    private String authToken;
+
+    @Value("${local-audit.auth-url:}")
+    private String authUrl;
+
+    @Value("${local-audit.auth-username:admin}")
+    private String authUsername;
+
+    @Value("${local-audit.auth-password:}")
+    private String authPassword;
+
+    @Value("${local-audit.auth-cert-content:}")
+    private String authCertContent;
+
+    @Value("${local-audit.auth-cert-path:}")
+    private String authCertPath;
+
+    private volatile String sessionCookie;
 
     /**
      * 调用本地模型审核图片
@@ -254,16 +282,23 @@ public class LocalAuditService {
                 log.info("【本地模型】上传文本审核(第{}/{}次): url={}, file={}",
                     attempt, maxRetry, textUrl, textFile.getName());
 
-                HttpResponse response = HttpRequest.post(textUrl)
+                HttpResponse response = executeAuditRequest(HttpRequest.post(textUrl)
                     .form("file", textFile)
                     .timeout(connectTimeout)
-                    .setReadTimeout(readTimeout)
-                    .execute();
+                    .setReadTimeout(readTimeout));
 
                 if (response.getStatus() == 200) {
                     String responseBody = response.body();
                     log.info("【本地模型】文本审核响应: {}", responseBody);
                     return JSON.parseObject(responseBody, LocalAuditResultDTO.class);
+                }
+
+                if (response.getStatus() == 401 && isCertSessionAuth()) {
+                    log.warn("【本地模型】文本审核认证失效, 第{}/{}次, 准备刷新会话", attempt, maxRetry);
+                    clearSessionCookie();
+                    if (attempt < maxRetry) {
+                        continue;
+                    }
                 }
 
                 if (response.getStatus() == 500) {
@@ -575,11 +610,10 @@ public class LocalAuditService {
                     attempt, maxRetry, imageUrl, imageFile.getName());
 
                 // 构建FormData请求
-                HttpResponse response = HttpRequest.post(imageUrl)
+                HttpResponse response = executeAuditRequest(HttpRequest.post(imageUrl)
                     .form("image", imageFile)
                     .timeout(connectTimeout)
-                    .setReadTimeout(readTimeout)
-                    .execute();
+                    .setReadTimeout(readTimeout));
 
                 // 200: 成功
                 if (response.getStatus() == 200) {
@@ -589,6 +623,14 @@ public class LocalAuditService {
                 }
 
                 // 500: 模型并发冲突,等待后重试
+                if (response.getStatus() == 401 && isCertSessionAuth()) {
+                    log.warn("【本地模型】图片审核认证失效, 第{}/{}次, 准备刷新会话", attempt, maxRetry);
+                    clearSessionCookie();
+                    if (attempt < maxRetry) {
+                        continue;
+                    }
+                }
+
                 if (response.getStatus() == 500) {
                     log.warn("【本地模型】模型返回500(CPU并发冲突), 第{}/{}次, {}ms后重试, body={}",
                         attempt, maxRetry, retryInterval, response.body());
@@ -632,19 +674,26 @@ public class LocalAuditService {
                 log.info("【本地模型】上传视频审核(第{}/{}次): url={}, file={}, frameInterval={}, maxFrames={}",
                         attempt, maxRetry, videoUrl, videoFile.getName(), videoFrameInterval, videoMaxFrames);
 
-                HttpResponse response = HttpRequest.post(videoUrl)
+                HttpResponse response = executeAuditRequest(HttpRequest.post(videoUrl)
                         .form("video", videoFile)
                         .form("frame_interval", String.valueOf(videoFrameInterval))
                         .form("max_frames", String.valueOf(videoMaxFrames))
                         .form("save_frames", String.valueOf(videoSaveFrames))
                         .timeout(connectTimeout)
-                        .setReadTimeout(readTimeout)
-                        .execute();
+                        .setReadTimeout(readTimeout));
 
                 if (response.getStatus() == 200) {
                     String responseBody = response.body();
                     log.info("【本地模型】视频审核响应: {}", responseBody);
                     return JSON.parseObject(responseBody, LocalAuditResultDTO.class);
+                }
+
+                if (response.getStatus() == 401 && isCertSessionAuth()) {
+                    log.warn("【本地模型】视频审核认证失效, 第{}/{}次, 准备刷新会话", attempt, maxRetry);
+                    clearSessionCookie();
+                    if (attempt < maxRetry) {
+                        continue;
+                    }
                 }
 
                 if (response.getStatus() == 500) {
@@ -692,10 +741,10 @@ public class LocalAuditService {
                 throw new IllegalArgumentException("审核响应数据为空");
             }
 
-            String auditResultStr = trimToNull(data.getAuditResult());
+            String auditResultStr = normalizeAuditResultLabel(data.getAuditResult());
             dto.setAuditResult(auditResultStr);
             dto.setDetectionResult(toInternalDetectionResult(auditResultStr));
-            dto.setViolationLevel(data.getViolationLevel());
+            dto.setViolationLevel(normalizeViolationLevelLabel(data.getViolationLevel()));
             dto.setLocalAuditData(data);
 
             LocalAuditResultDTO.Violation firstViolation = firstViolation(data);
@@ -705,7 +754,8 @@ public class LocalAuditService {
                     dto.setConfidence((int) Math.round(firstViolation.getConfidence() * 100));
                 }
                 dto.setReason(firstNonBlank(firstViolation.getViolationReason(),
-                        firstNonBlank(firstViolation.getKeyword(), firstViolation.getText())));
+                        firstNonBlank(firstViolation.getKeyword(),
+                                firstNonBlank(firstViolation.getText(), firstViolation.getClassName()))));
             } else {
                 dto.setViolationType("通过".equals(auditResultStr) ? "none" : "other");
             }
@@ -748,13 +798,173 @@ public class LocalAuditService {
     }
 
     private String toInternalDetectionResult(String auditResult) {
-        if ("阻断".equals(auditResult) || "复核".equals(auditResult)) {
+        String normalized = normalizeAuditResultLabel(auditResult);
+        if ("阻断".equals(normalized) || "复核".equals(normalized)) {
             return "violation";
         }
-        if ("通过".equals(auditResult)) {
+        if ("通过".equals(normalized)) {
             return "compliant";
         }
         return "pending";
+    }
+
+    private HttpResponse executeAuditRequest(HttpRequest request) {
+        applyAuth(request);
+        return request.execute();
+    }
+
+    private void applyAuth(HttpRequest request) {
+        String mode = normalizeConfig(authMode);
+        if ("bearer".equals(mode)) {
+            String token = trimToNull(authToken);
+            if (token != null) {
+                request.header("Authorization", token.toLowerCase(Locale.ROOT).startsWith("bearer ")
+                        ? token
+                        : "Bearer " + token);
+            }
+            return;
+        }
+        if ("cert-session".equals(mode) || "session".equals(mode)) {
+            String cookie = ensureSessionCookie();
+            if (cookie != null) {
+                request.cookie(cookie);
+            }
+        }
+    }
+
+    private boolean isCertSessionAuth() {
+        String mode = normalizeConfig(authMode);
+        return "cert-session".equals(mode) || "session".equals(mode);
+    }
+
+    private void clearSessionCookie() {
+        sessionCookie = null;
+    }
+
+    private String ensureSessionCookie() {
+        String current = trimToNull(sessionCookie);
+        if (current != null) {
+            return current;
+        }
+        synchronized (this) {
+            current = trimToNull(sessionCookie);
+            if (current != null) {
+                return current;
+            }
+            sessionCookie = loginAndReadCookie();
+            return sessionCookie;
+        }
+    }
+
+    private String loginAndReadCookie() {
+        String loginUrl = resolveAuthUrl();
+        if (loginUrl == null) {
+            throw new IllegalStateException("local-audit auth-url is empty");
+        }
+        String certContent = resolveCertContent();
+        Map<String, Object> body = new HashMap<>();
+        body.put("username", trimToNull(authUsername) != null ? authUsername.trim() : "admin");
+        body.put("password", trimToNull(authPassword) != null ? authPassword : "");
+        body.put("cert_content", certContent != null ? certContent : "");
+
+        HttpResponse response = HttpRequest.post(loginUrl)
+                .header("Content-Type", "application/json;charset=UTF-8")
+                .body(JSON.toJSONString(body))
+                .timeout(connectTimeout)
+                .setReadTimeout(readTimeout)
+                .execute();
+        if (response.getStatus() != 200) {
+            throw new IllegalStateException("local audit cert login failed, status=" + response.getStatus());
+        }
+        LocalAuditResultDTO loginResult = JSON.parseObject(response.body(), LocalAuditResultDTO.class);
+        if (loginResult == null || loginResult.getCode() == null || loginResult.getCode() != 0) {
+            throw new IllegalStateException("local audit cert login rejected, code="
+                    + (loginResult != null ? loginResult.getCode() : null));
+        }
+        String setCookie = trimToNull(response.header("Set-Cookie"));
+        if (setCookie == null) {
+            throw new IllegalStateException("local audit cert login missing session cookie");
+        }
+        String cookie = setCookie.split(";", 2)[0].trim();
+        log.info("【本地模型】证书会话登录成功, username={}", trimToNull(authUsername) != null ? authUsername.trim() : "admin");
+        return cookie;
+    }
+
+    private String resolveAuthUrl() {
+        String configured = trimToNull(authUrl);
+        if (configured != null) {
+            return configured;
+        }
+        String auditUrl = trimToNull(imageUrl);
+        if (auditUrl == null) {
+            return null;
+        }
+        int idx = auditUrl.indexOf("/api/audit/");
+        if (idx < 0) {
+            return null;
+        }
+        return auditUrl.substring(0, idx) + "/api/auth/cert-login";
+    }
+
+    private String resolveCertContent() {
+        String configured = trimToNull(authCertContent);
+        if (configured != null) {
+            return configured;
+        }
+        String path = trimToNull(authCertPath);
+        if (path == null) {
+            return "";
+        }
+        try {
+            return new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new IllegalStateException("read local audit cert failed: " + e.getMessage(), e);
+        }
+    }
+
+    private String normalizeAuditResultLabel(String auditResult) {
+        String value = trimToNull(auditResult);
+        if (value == null) {
+            return null;
+        }
+        String lower = value.toLowerCase(Locale.ROOT);
+        if ("pass".equals(lower) || "allow".equals(lower) || "approved".equals(lower) || "通过".equals(value)) {
+            return "通过";
+        }
+        if ("review".equals(lower) || "manual".equals(lower) || "复核".equals(value)) {
+            return "复核";
+        }
+        if ("block".equals(lower) || "blocked".equals(lower) || "reject".equals(lower)
+                || "rejected".equals(lower) || "阻断".equals(value)) {
+            return "阻断";
+        }
+        return value;
+    }
+
+    private String normalizeViolationLevelLabel(String violationLevel) {
+        String value = trimToNull(violationLevel);
+        if (value == null) {
+            return null;
+        }
+        String lower = value.toLowerCase(Locale.ROOT);
+        if ("none".equals(lower) || "无".equals(value)) {
+            return "无";
+        }
+        if ("low".equals(lower) || "低".equals(value)) {
+            return "低";
+        }
+        if ("medium".equals(lower) || "中".equals(value)) {
+            return "中";
+        }
+        if ("high".equals(lower) || "高".equals(value)) {
+            return "高";
+        }
+        return value;
+    }
+
+    private String normalizeConfig(String value) {
+        String normalized = trimToNull(value);
+        return normalized == null ? "none" : normalized.toLowerCase(Locale.ROOT);
     }
 
     private LocalAuditResultDTO.Violation firstViolation(LocalAuditResultDTO.AuditData data) {
