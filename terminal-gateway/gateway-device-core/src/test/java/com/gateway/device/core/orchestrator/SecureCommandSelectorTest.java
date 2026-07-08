@@ -35,7 +35,7 @@ class SecureCommandSelectorTest {
 
         assertNull(selector.getDeviceIds());
         assertEquals(Collections.singleton("192.168.10.21"), selector.getIps());
-        assertEquals(Collections.singleton(DeviceVendor.JET_FILE_II), selector.getVendors());
+        assertEquals(Collections.singleton(DeviceVendor.JET_FILE_II_STANDARD), selector.getVendors());
     }
 
     @Test
@@ -56,7 +56,7 @@ class SecureCommandSelectorTest {
         assertNull(selector.getDeviceIds());
         assertEquals(Collections.singleton("192.168.10.22"), selector.getIps());
         assertEquals(Collections.singleton(CommonDeviceCapability.BRIGHTNESS_SET), selector.getRequiredCapabilities());
-        assertEquals(Collections.singleton(DeviceVendor.JET_FILE_II), selector.getVendors());
+        assertEquals(Collections.singleton(DeviceVendor.JET_FILE_II_STANDARD), selector.getVendors());
     }
 
     @Test
@@ -75,7 +75,24 @@ class SecureCommandSelectorTest {
 
         assertEquals(Collections.singleton("SN-001"), selector.getDeviceIds());
         assertNull(selector.getIps());
-        assertEquals(Collections.singleton(DeviceVendor.JET_FILE_II), selector.getVendors());
+        assertEquals(Collections.singleton(DeviceVendor.JET_FILE_II_STANDARD), selector.getVendors());
+    }
+
+    @Test
+    void publishTargetMapsColorightAliasToColorLightVendor() throws Exception {
+        PublishPackageOrchestrator orchestrator =
+                new PublishPackageOrchestrator(null, null, null, null, null, null);
+        StandardizedPublishPackage.TargetRef target = new StandardizedPublishPackage.TargetRef();
+        target.setIp("192.168.10.24");
+        target.setVendorHint("COLORIGHT");
+
+        Method method = PublishPackageOrchestrator.class
+                .getDeclaredMethod("buildSelector", StandardizedPublishPackage.TargetRef.class);
+        method.setAccessible(true);
+
+        DeviceSelector selector = (DeviceSelector) method.invoke(orchestrator, target);
+
+        assertEquals(Collections.singleton(DeviceVendor.COLOR_LIGHT_STANDARD), selector.getVendors());
     }
 
     @Test
@@ -95,7 +112,24 @@ class SecureCommandSelectorTest {
         assertEquals(Collections.singleton("SN-002"), selector.getDeviceIds());
         assertNull(selector.getIps());
         assertEquals(Collections.singleton(CommonDeviceCapability.BRIGHTNESS_SET), selector.getRequiredCapabilities());
-        assertEquals(Collections.singleton(DeviceVendor.JET_FILE_II), selector.getVendors());
+        assertEquals(Collections.singleton(DeviceVendor.JET_FILE_II_STANDARD), selector.getVendors());
+    }
+
+    @Test
+    void controlTargetMapsColorightAliasToColorLightVendor() throws Exception {
+        ControlCommandOrchestrator orchestrator =
+                new ControlCommandOrchestrator(null, null, null, null, null);
+        StandardizedControlPackage.TargetInfo target = new StandardizedControlPackage.TargetInfo();
+        target.setIp("192.168.10.25");
+        target.setVendorHint("COLORIGHT");
+
+        Method method = ControlCommandOrchestrator.class
+                .getDeclaredMethod("buildSelector", StandardizedControlPackage.TargetInfo.class, DeviceCapability.class);
+        method.setAccessible(true);
+
+        DeviceSelector selector = (DeviceSelector) method.invoke(orchestrator, target, CommonDeviceCapability.BRIGHTNESS_SET);
+
+        assertEquals(Collections.singleton(DeviceVendor.COLOR_LIGHT_STANDARD), selector.getVendors());
     }
 
     @Test
@@ -109,7 +143,7 @@ class SecureCommandSelectorTest {
 
         assertNull(selector.getDeviceIds());
         assertEquals(Collections.singleton("192.168.10.23"), selector.getIps());
-        assertEquals(Collections.singleton(DeviceVendor.JET_FILE_II), selector.getVendors());
+        assertEquals(Collections.singleton(DeviceVendor.JET_FILE_II_STANDARD), selector.getVendors());
         assertEquals(Boolean.TRUE, selector.getOnlineOnly());
     }
 
@@ -125,7 +159,19 @@ class SecureCommandSelectorTest {
 
         assertNull(selector.getDeviceIds());
         assertEquals(Collections.singleton("192.168.10.23"), selector.getIps());
-        assertEquals(Collections.singleton(DeviceVendor.JET_FILE_II), selector.getVendors());
+        assertEquals(Collections.singleton(DeviceVendor.JET_FILE_II_STANDARD), selector.getVendors());
         assertEquals(Boolean.TRUE, selector.getOnlineOnly());
+    }
+
+    @Test
+    void batchTargetMapperMapsColorightAliasToColorLightVendor() {
+        TargetToSelectorMapper mapper = new TargetToSelectorMapper();
+        BatchCommandRequestDTO.TargetRef target = new BatchCommandRequestDTO.TargetRef();
+        target.setIp("192.168.10.26");
+        target.setVendor("COLORIGHT");
+
+        DeviceSelector selector = mapper.map(target);
+
+        assertEquals(Collections.singleton(DeviceVendor.COLOR_LIGHT_STANDARD), selector.getVendors());
     }
 }

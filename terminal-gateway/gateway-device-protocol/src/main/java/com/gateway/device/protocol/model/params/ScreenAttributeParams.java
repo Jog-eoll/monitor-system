@@ -69,10 +69,18 @@ public class ScreenAttributeParams implements CommandParams {
     /**
      * 接收卡带载宽度（LED 点阵宽度，如 64、96、128）
      */
-    private Integer width;
+    @Builder.Default
+    private int width = 64;
 
     /**
      * 接收卡带载高度（LED 点阵高度，如 64、96、128）
      */
-    private Integer height;
+    @Builder.Default
+    private int height = 64;
+
+    /**
+     * 输出帧率，默认 60
+     */
+    @Builder.Default
+    private int freq = 60;
 }

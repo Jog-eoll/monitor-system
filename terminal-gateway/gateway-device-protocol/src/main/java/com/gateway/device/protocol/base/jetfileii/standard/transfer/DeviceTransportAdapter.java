@@ -3,6 +3,7 @@ package com.gateway.device.protocol.base.jetfileii.standard.transfer;
 import com.gateway.device.protocol.api.DeviceTransport;
 import com.gateway.device.protocol.base.jetfileii.standard.JetFileIIParser;
 import com.gateway.device.protocol.base.jetfileii.standard.model.PacketMessage;
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.model.DeviceContext;
 
 import java.io.IOException;
@@ -16,7 +17,7 @@ import java.util.concurrent.TimeoutException;
  */
 public class DeviceTransportAdapter implements TransportAdapter {
 
-    private static final Duration TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration TIMEOUT = Duration.ofMillis(GatewayTimeoutConstants.DEVICE_OPERATION_QUICK_MS);
     private final DeviceTransport transport;
     private final DeviceContext device;
 

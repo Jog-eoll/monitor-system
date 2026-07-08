@@ -1,4 +1,4 @@
-package com.gateway.device.core.event;
+package com.gateway.device.core.event.logger;
 
 import com.gateway.device.protocol.common.capability.depend.DeviceCapability;
 import lombok.Getter;

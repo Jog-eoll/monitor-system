@@ -17,14 +17,6 @@ public final class DiscoveryConst {
      * NovaStar AVON 设备监听端口
      */
     public static final int[] NOVA_STAR_DISCOVERY_PORTS = {16601, 16611};
-    /**
-     * 默认发现超时 ms
-     */
-    public static final int DEFAULT_TIMEOUT_MS = 5000;
-    /**
-     * TCP 探测默认并发数
-     */
-    public static final int DEFAULT_CONCURRENCY = 20;
 
     private DiscoveryConst() {
     }

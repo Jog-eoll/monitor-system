@@ -1,27 +1,43 @@
 package com.gateway.device.protocol.base.novastar.viplexcore.helper;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.gateway.device.protocol.base.novastar.viplexcore.font.NovaStarFontInfo;
+import com.gateway.device.protocol.base.novastar.viplexcore.model.request.*;
+import com.gateway.device.protocol.common.DateTimeFormatUtils;
 import com.gateway.device.protocol.common.JsonCustomMapper;
 import com.gateway.device.protocol.model.params.IpConfigParams;
 import com.gateway.device.protocol.model.params.ScreenAttributeParams;
 
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * ViplexCore SDK JSON 协议构建器 —— 静态工具类，纯函数无状态。
  *
- * <p>所有 {@code nv*Async} 请求 JSON 由此统一构建，属于 base 层。</p>
+ * <p>所有 {@code nv*Async} 请求 JSON 由此统一构建，属于 base 层。
+ * 内部通过 POJO + Jackson 序列化生成 JSON，不再手动拼接 ObjectNode。</p>
  */
 public final class ViplexCoreJsonBuilder {
 
-    private static final String DEFAULT_IFACE = "eth0";
-    private static final int DEFAULT_SCOPE_ID = -1;
-
     private ViplexCoreJsonBuilder() {
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // 内部工具
+    // ════════════════════════════════════════════════════════════
+
+    /**
+     * 将 POJO 序列化为 JSON 字符串
+     */
+    private static String toJson(Object obj) {
+        try {
+            return JsonCustomMapper.get().writeValueAsString(obj);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("JSON 序列化失败", e);
+        }
     }
 
     // ════════════════════════════════════════════════════════════
@@ -32,8 +48,7 @@ public final class ViplexCoreJsonBuilder {
      * 构建仅含 SN 的通用请求 JSON {@code {"sn":"xxx"}}
      */
     public static String buildSnJson(String sn) {
-        return JsonCustomMapper.get().createObjectNode()
-                .put("sn", sn).toString();
+        return toJson(SnRequest.builder().sn(sn).build());
     }
 
     // ════════════════════════════════════════════════════════════
@@ -44,40 +59,33 @@ public final class ViplexCoreJsonBuilder {
      * 构建 {@code nvSetEthernetInfoAsync} 请求 JSON
      */
     public static String buildEthernetInfoJson(String sn, IpConfigParams params, boolean useStaticIp) {
-        ObjectMapper mapper = JsonCustomMapper.get();
-
-        ObjectNode eth = mapper.createObjectNode();
-        eth.put("scopeId", DEFAULT_SCOPE_ID);
-        eth.put("name", DEFAULT_IFACE);
-        eth.put("dhcp", !useStaticIp);
+        EthernetInfoRequest.Ethernet.EthernetBuilder ethBuilder = EthernetInfoRequest.Ethernet.builder()
+                .dhcp(!useStaticIp);
 
         if (useStaticIp) {
-            eth.put("ip", params.getIp());
+            ethBuilder.ip(params.getIp());
             if (params.getMask() != null) {
-                eth.put("mask", params.getMask());
+                ethBuilder.mask(params.getMask());
             }
             if (params.getGateway() != null) {
-                eth.put("gateWay", params.getGateway());
+                ethBuilder.gateWay(params.getGateway());
             }
         }
+
         String d1 = params.getDns1(), d2 = params.getDns2();
         if (d1 != null || d2 != null) {
-            ArrayNode dnsArr = mapper.createArrayNode();
-            if (d1 != null) dnsArr.add(d1);
-            if (d2 != null) dnsArr.add(d2);
-            eth.set("dns", dnsArr);
+            List<String> dns = new ArrayList<>();
+            if (d1 != null) dns.add(d1);
+            if (d2 != null) dns.add(d2);
+            ethBuilder.dns(dns);
         }
 
-        ArrayNode ethernets = mapper.createArrayNode();
-        ethernets.add(eth);
-
-        ObjectNode taskInfo = mapper.createObjectNode();
-        taskInfo.set("ethernets", ethernets);
-
-        ObjectNode root = mapper.createObjectNode();
-        root.put("sn", sn);
-        root.set("taskInfo", taskInfo);
-        return root.toString();
+        return toJson(EthernetInfoRequest.builder()
+                .sn(sn)
+                .taskInfo(EthernetInfoRequest.TaskInfo.builder()
+                        .ethernets(Collections.singletonList(ethBuilder.build()))
+                        .build())
+                .build());
     }
 
     // ════════════════════════════════════════════════════════════
@@ -88,23 +96,19 @@ public final class ViplexCoreJsonBuilder {
      * 构建 {@code nvCalibrateTimeAsync} 请求 JSON
      */
     public static String buildCalibrateTimeJson(String sn, ZonedDateTime zdt) {
-        String currentTime = zdt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ"));
+        String currentTime = DateTimeFormatUtils.TimeFormat(zdt, DateTimeFormatUtils.FMT.ISO_8601_OFFSET);
 
-        ObjectMapper mapper = JsonCustomMapper.get();
-        ObjectNode tzInfo = mapper.createObjectNode();
-        tzInfo.put("utcTimeMillis", zdt.toInstant().toEpochMilli());
-        tzInfo.put("timeZone", zdt.getZone().getId());
-        tzInfo.put("gmt", "GMT" + zdt.getOffset().toString());
-        tzInfo.put("isTimeOffsetEnable", false);
-        tzInfo.put("beginTime", "");
-        tzInfo.put("endTime", "");
-        tzInfo.put("timeOffsetValue", 0);
+        CalibrateTimeRequest.TimeZoneInfo tzInfo = CalibrateTimeRequest.TimeZoneInfo.builder()
+                .utcTimeMillis(zdt.toInstant().toEpochMilli())
+                .timeZone(zdt.getZone().getId())
+                .gmt("GMT" + zdt.getOffset().toString())
+                .build();
 
-        ObjectNode json = mapper.createObjectNode();
-        json.put("sn", sn);
-        json.put("currentTime", currentTime);
-        json.set("timeZoneInfo", tzInfo);
-        return json.toString();
+        return toJson(CalibrateTimeRequest.builder()
+                .sn(sn)
+                .currentTime(currentTime)
+                .timeZoneInfo(tzInfo)
+                .build());
     }
 
     // ════════════════════════════════════════════════════════════
@@ -115,29 +119,25 @@ public final class ViplexCoreJsonBuilder {
      * 构建 {@code nvSetNetTimingInfoAsync} 请求 JSON
      */
     public static String buildNtpConfigJson(String sn, String ntpServer) {
-        ObjectMapper mapper = JsonCustomMapper.get();
+        NtpConfigRequest.NtpData ntpData = NtpConfigRequest.NtpData.builder()
+                .server(ntpServer)
+                .build();
 
-        ObjectNode ntpData = mapper.createObjectNode();
-        ntpData.put("enable", true);
-        ntpData.put("server", ntpServer);
+        NtpConfigRequest.Task task = NtpConfigRequest.Task.builder()
+                .data(ntpData)
+                .build();
 
-        ObjectNode ntpTask = mapper.createObjectNode();
-        ntpTask.put("type", "NTP_CONFIG");
-        ntpTask.put("action", 4);
-        ntpTask.set("data", ntpData);
+        NtpConfigRequest.Source source = NtpConfigRequest.Source.builder().build();
 
-        ObjectNode source = mapper.createObjectNode();
-        source.put("type", 1);
-        source.put("platform", 1);
+        NtpConfigRequest.TimingInfo timingInfo = NtpConfigRequest.TimingInfo.builder()
+                .source(source)
+                .taskArray(Collections.singletonList(task))
+                .build();
 
-        ObjectNode timingInfo = mapper.createObjectNode();
-        timingInfo.set("source", source);
-        timingInfo.putArray("taskArray").add(ntpTask);
-
-        ObjectNode json = mapper.createObjectNode();
-        json.put("sn", sn);
-        json.set("TimingInfo", timingInfo);
-        return json.toString();
+        return toJson(NtpConfigRequest.builder()
+                .sn(sn)
+                .timingInfo(timingInfo)
+                .build());
     }
 
     // ════════════════════════════════════════════════════════════
@@ -148,16 +148,16 @@ public final class ViplexCoreJsonBuilder {
      * 构建 {@code nvSetCustomResolutionAsync} 请求 JSON
      */
     public static String buildCustomResolutionJson(String sn, int displayMode, int width, int height) {
-        ObjectMapper mapper = JsonCustomMapper.get();
-        ObjectNode info = mapper.createObjectNode();
-        info.put("displayMode", displayMode);
-        info.put("width", width);
-        info.put("height", height);
+        CustomResolutionRequest.Info info = CustomResolutionRequest.Info.builder()
+                .displayMode(displayMode)
+                .width(width)
+                .height(height)
+                .build();
 
-        ObjectNode json = mapper.createObjectNode();
-        json.put("sn", sn);
-        json.set("info", info);
-        return json.toString();
+        return toJson(CustomResolutionRequest.builder()
+                .sn(sn)
+                .info(info)
+                .build());
     }
 
     // ════════════════════════════════════════════════════════════
@@ -168,47 +168,32 @@ public final class ViplexCoreJsonBuilder {
      * 构建 {@code nvSetScreenAttributeAsync} 请求 JSON
      */
     public static String buildScreenAttributeJson(String sn, ScreenAttributeParams params) {
-        ObjectMapper mapper = JsonCustomMapper.get();
+        ScreenAttributeRequest.ScanInfo scanInfo = ScreenAttributeRequest.ScanInfo.builder()
+                .width(params.getWidth())
+                .height(params.getHeight())
+                .build();
 
-        ObjectNode scanInfo = mapper.createObjectNode();
-        scanInfo.put("width", params.getWidth());
-        scanInfo.put("height", params.getHeight());
-        scanInfo.put("x", 0);
-        scanInfo.put("y", 0);
-        scanInfo.put("xInPort", 0);
-        scanInfo.put("yInPort", 0);
-        scanInfo.put("portIndex", 0);
-        scanInfo.put("connectIndex", 0);
+        ScreenAttributeRequest.ScreenAttr screenAttr = ScreenAttributeRequest.ScreenAttr.builder()
+                .id(params.getId())
+                .screenSource(params.getScreenSource())
+                .xCount(params.getXCount())
+                .yCount(params.getYCount())
+                .xOffset(params.getXOffset())
+                .yOffset(params.getYOffset())
+                .portNumber(params.getPortNumber())
+                .orders(params.getOrders())
+                .scanInfos(Collections.singletonList(scanInfo))
+                .build();
 
-        ArrayNode scanInfos = mapper.createArrayNode();
-        scanInfos.add(scanInfo);
+        ScreenAttributeRequest.ScreenAttributeWrapper wrapper =
+                ScreenAttributeRequest.ScreenAttributeWrapper.builder()
+                        .screenAttributes(Collections.singletonList(screenAttr))
+                        .build();
 
-        ArrayNode orders = mapper.createArrayNode();
-        for (Integer o : params.getOrders()) {
-            orders.add(o);
-        }
-
-        ObjectNode screenAttr = mapper.createObjectNode();
-        screenAttr.put("id", params.getId());
-        screenAttr.put("screenSource", params.getScreenSource());
-        screenAttr.put("xCount", params.getXCount());
-        screenAttr.put("yCount", params.getYCount());
-        screenAttr.put("xOffset", params.getXOffset());
-        screenAttr.put("yOffset", params.getYOffset());
-        screenAttr.put("portNumber", params.getPortNumber());
-        screenAttr.set("orders", orders);
-        screenAttr.set("scanInfos", scanInfos);
-
-        ArrayNode screenAttributes = mapper.createArrayNode();
-        screenAttributes.add(screenAttr);
-
-        ObjectNode screenAttribute = mapper.createObjectNode();
-        screenAttribute.set("screenAttributes", screenAttributes);
-
-        ObjectNode json = mapper.createObjectNode();
-        json.put("sn", sn);
-        json.set("screenAttribute", screenAttribute);
-        return json.toString();
+        return toJson(ScreenAttributeRequest.builder()
+                .sn(sn)
+                .screenAttribute(wrapper)
+                .build());
     }
 
     // ════════════════════════════════════════════════════════════
@@ -219,14 +204,14 @@ public final class ViplexCoreJsonBuilder {
      * 构建 {@code nvSetScreenPowerStateAsync} 请求 JSON
      */
     public static String buildScreenPowerJson(String sn, String state) {
-        ObjectMapper mapper = JsonCustomMapper.get();
-        ObjectNode taskInfo = mapper.createObjectNode();
-        taskInfo.put("state", state);
+        ScreenPowerRequest.TaskInfo taskInfo = ScreenPowerRequest.TaskInfo.builder()
+                .state(state)
+                .build();
 
-        ObjectNode json = mapper.createObjectNode();
-        json.put("sn", sn);
-        json.set("taskInfo", taskInfo);
-        return json.toString();
+        return toJson(ScreenPowerRequest.builder()
+                .sn(sn)
+                .taskInfo(taskInfo)
+                .build());
     }
 
     // ════════════════════════════════════════════════════════════
@@ -237,14 +222,14 @@ public final class ViplexCoreJsonBuilder {
      * 构建 {@code nvSetVolumeAsync} 请求 JSON
      */
     public static String buildVolumeJson(String sn, double ratio) {
-        ObjectMapper mapper = JsonCustomMapper.get();
-        ObjectNode volumeInfo = mapper.createObjectNode();
-        volumeInfo.put("ratio", ratio);
+        VolumeRequest.VolumeInfo volumeInfo = VolumeRequest.VolumeInfo.builder()
+                .ratio(ratio)
+                .build();
 
-        ObjectNode json = mapper.createObjectNode();
-        json.put("sn", sn);
-        json.set("volumeInfo", volumeInfo);
-        return json.toString();
+        return toJson(VolumeRequest.builder()
+                .sn(sn)
+                .volumeInfo(volumeInfo)
+                .build());
     }
 
     // ════════════════════════════════════════════════════════════
@@ -252,24 +237,18 @@ public final class ViplexCoreJsonBuilder {
     // ════════════════════════════════════════════════════════════
 
     /**
-     * 构建 {@code nvGetScreenBrightnessAsync} 请求 JSON
-     */
-    public static String buildBrightnessGetJson(String sn) {
-        return buildSnJson(sn);
-    }
-
-    /**
      * 构建 {@code nvSetScreenBrightnessAsync} 请求 JSON
      */
     public static String buildBrightnessSetJson(String sn, double ratio) {
-        ObjectMapper mapper = JsonCustomMapper.get();
-        ObjectNode brightnessInfo = mapper.createObjectNode();
-        brightnessInfo.put("ratio", ratio);
+        BrightnessSetRequest.ScreenBrightnessInfo info =
+                BrightnessSetRequest.ScreenBrightnessInfo.builder()
+                        .ratio(ratio)
+                        .build();
 
-        ObjectNode json = mapper.createObjectNode();
-        json.put("sn", sn);
-        json.set("screenBrightnessInfo", brightnessInfo);
-        return json.toString();
+        return toJson(BrightnessSetRequest.builder()
+                .sn(sn)
+                .screenBrightnessInfo(info)
+                .build());
     }
 
     // ════════════════════════════════════════════════════════════
@@ -280,34 +259,20 @@ public final class ViplexCoreJsonBuilder {
      * 构建 {@code nvSetReBootTaskAsync} 请求 JSON
      */
     public static String buildRebootJson(String sn) {
-        ObjectMapper mapper = JsonCustomMapper.get();
+        RebootRequest.Source source = RebootRequest.Source.builder().build();
+        RebootRequest.TaskInfo taskInfo = RebootRequest.TaskInfo.builder()
+                .source(source)
+                .build();
 
-        ObjectNode source = mapper.createObjectNode();
-        source.put("type", 0);
-        source.put("platform", 2);
-
-        ObjectNode taskInfo = mapper.createObjectNode();
-        taskInfo.put("type", "REBOOT");
-        taskInfo.set("source", source);
-        taskInfo.put("executionType", "IMMEDIATELY");
-        taskInfo.put("reason", "gateway command");
-
-        ObjectNode json = mapper.createObjectNode();
-        json.put("sn", sn);
-        json.set("taskInfo", taskInfo);
-        return json.toString();
+        return toJson(RebootRequest.builder()
+                .sn(sn)
+                .taskInfo(taskInfo)
+                .build());
     }
 
     // ════════════════════════════════════════════════════════════
     // 字体管理
     // ════════════════════════════════════════════════════════════
-
-    /**
-     * 构建 {@code nvGetTerminalFontAsync} 请求 JSON（仅 SN）
-     */
-    public static String buildFontGetJson(String sn) {
-        return buildSnJson(sn);
-    }
 
     /**
      * 构建 {@code nvUpdateFontAsync} 请求 JSON
@@ -317,33 +282,23 @@ public final class ViplexCoreJsonBuilder {
      * @param fonts         待同步的字体列表
      */
     public static String buildFontUpdateJson(String sn, String localFontPath, java.util.List<NovaStarFontInfo> fonts) {
-        ObjectMapper mapper = JsonCustomMapper.get();
+        List<FontUpdateRequest.FontInfo> fontInfos = fonts.stream()
+                .map(f -> FontUpdateRequest.FontInfo.builder()
+                        .name(f.getName())
+                        .styles(f.getStyles())
+                        .files(f.getFiles())
+                        .build())
+                .collect(Collectors.toList());
 
-        ArrayNode fontsArr = mapper.createArrayNode();
-        for (NovaStarFontInfo f : fonts) {
-            ObjectNode fn = mapper.createObjectNode();
-            fn.put("name", f.getName());
-            ArrayNode stylesArr = mapper.createArrayNode();
-            for (String s : f.getStyles()) {
-                stylesArr.add(s);
-            }
-            fn.set("style", stylesArr);
-            ArrayNode filesArr = mapper.createArrayNode();
-            for (String file : f.getFiles()) {
-                filesArr.add(file);
-            }
-            fn.set("file", filesArr);
-            fontsArr.add(fn);
-        }
+        FontUpdateRequest.TaskInfo taskInfo = FontUpdateRequest.TaskInfo.builder()
+                .fonts(fontInfos)
+                .build();
 
-        ObjectNode taskInfo = mapper.createObjectNode();
-        taskInfo.set("fonts", fontsArr);
-
-        ObjectNode json = mapper.createObjectNode();
-        json.put("sn", sn);
-        json.put("localFontPath", localFontPath != null ? localFontPath : "");
-        json.set("taskInfo", taskInfo);
-        return json.toString();
+        return toJson(FontUpdateRequest.builder()
+                .sn(sn)
+                .localFontPath(localFontPath != null ? localFontPath : "")
+                .taskInfo(taskInfo)
+                .build());
     }
 
     // ════════════════════════════════════════════════════════════
@@ -351,20 +306,12 @@ public final class ViplexCoreJsonBuilder {
     // ════════════════════════════════════════════════════════════
 
     /**
-     * 构建 {@code nvGetAPNetworkOpenStatusAsync} 请求 JSON
-     */
-    public static String buildApStatusGetJson(String sn) {
-        return buildSnJson(sn);
-    }
-
-    /**
      * 构建 {@code nvSetAPNetworkOpenStatusAsync} 请求 JSON
      */
     public static String buildApSwitchJson(String sn, boolean enable) {
-        ObjectMapper mapper = JsonCustomMapper.get();
-        ObjectNode json = mapper.createObjectNode();
-        json.put("sn", sn);
-        json.put("enable", enable);
-        return json.toString();
+        return toJson(ApSwitchRequest.builder()
+                .sn(sn)
+                .enable(enable)
+                .build());
     }
 }

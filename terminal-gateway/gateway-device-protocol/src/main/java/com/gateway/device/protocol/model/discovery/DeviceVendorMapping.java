@@ -1,5 +1,6 @@
 package com.gateway.device.protocol.model.discovery;
 
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.common.constant.DeviceVendor;
 import com.gateway.device.protocol.common.constant.VendorDefaultPort;
 import com.gateway.device.protocol.common.discovery.DiscoveryConst;
@@ -62,14 +63,14 @@ public class DeviceVendorMapping {
     private List<String> subnets;
 
     /**
-     * 发现超时（毫秒），默认 {@link DiscoveryConst#DEFAULT_TIMEOUT_MS}
+     * 发现超时（毫秒），默认 {@link GatewayTimeoutConstants#DISCOVERY_DEFAULT_TIMEOUT_MS}
      */
-    private int timeoutMs = DiscoveryConst.DEFAULT_TIMEOUT_MS;
+    private int timeoutMs = GatewayTimeoutConstants.DISCOVERY_DEFAULT_TIMEOUT_MS;
 
     /**
-     * 并行探测线程数，默认 {@link DiscoveryConst#DEFAULT_CONCURRENCY}
+     * 并行探测线程数，默认 {@link GatewayTimeoutConstants#DISCOVERY_DEFAULT_CONCURRENCY}
      */
-    private int concurrency = DiscoveryConst.DEFAULT_CONCURRENCY;
+    private int concurrency = GatewayTimeoutConstants.DISCOVERY_DEFAULT_CONCURRENCY;
 
     // ════════════════════════════════════════════════════
     // 便捷方法

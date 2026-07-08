@@ -4,6 +4,7 @@ import com.gateway.device.protocol.adapter.jetfileii.standard.handler.AbstractJe
 import com.gateway.device.protocol.api.DeviceTransport;
 import com.gateway.device.protocol.base.jetfileii.standard.command.FileType;
 import com.gateway.device.protocol.base.jetfileii.standard.command.Partition;
+import com.gateway.device.protocol.base.jetfileii.standard.command.ProtocolConst;
 import com.gateway.device.protocol.base.jetfileii.standard.helper.JetFileIIMessaging;
 import com.gateway.device.protocol.base.jetfileii.standard.sys.SequentSysHelper;
 import com.gateway.device.protocol.base.jetfileii.standard.text.NmgTextBuilder;
@@ -79,7 +80,7 @@ public class JetFileIITextUploadHandler extends AbstractJetFileIIHandler<TextUpl
             String filePath = FileType.TEXT.resolvePath(partition, fileName);
 
             FileTransfer ft = createFileTransfer(device);
-            ft.writePathFile(filePath, nmgBytes, 768);
+            ft.writePathFile(filePath, nmgBytes, ProtocolConst.DEFAULT_CHUNK_SIZE);
 
             // ── 写入播放列表并重载 ──
             int lineCount = StringUtils.isNotBlank(text) ? text.split("\n", -1).length : 0;

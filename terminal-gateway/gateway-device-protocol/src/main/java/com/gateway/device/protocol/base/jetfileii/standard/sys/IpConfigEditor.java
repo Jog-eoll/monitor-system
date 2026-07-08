@@ -1,5 +1,6 @@
 package com.gateway.device.protocol.base.jetfileii.standard.sys;
 
+import com.gateway.device.protocol.base.jetfileii.standard.command.ProtocolConst;
 import com.gateway.device.protocol.base.jetfileii.standard.transfer.FileTransfer;
 import com.gateway.device.protocol.model.params.IpConfigParams;
 import lombok.extern.slf4j.Slf4j;
@@ -94,7 +95,7 @@ public class IpConfigEditor {
      * @throws IOException 写入失败
      */
     public void writeConfig(FileTransfer ft, byte[] data) throws IOException {
-        ft.writeSysFile(ConfigSysLayout.FILE_NAME, data, 1024);
+        ft.writeSysFile(ConfigSysLayout.FILE_NAME, data, ProtocolConst.DEFAULT_CHUNK_SIZE);
         log.info("[IpConfig] CONFIG.SYS 写入完成, {}B", data.length);
     }
 }

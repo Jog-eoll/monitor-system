@@ -2,17 +2,14 @@ package com.gateway.device.core.config.colorlight;
 
 import com.gateway.device.core.config.DiscoveryProperties;
 import com.gateway.device.core.config.FontsProperties;
-import com.gateway.device.protocol.adapter.colorlight.standard.ColorLightAdapter;
-import com.gateway.device.protocol.adapter.colorlight.standard.ColorLightCredentialStore;
-import com.gateway.device.protocol.adapter.colorlight.standard.ColorLightDeviceInfoEnricher;
-import com.gateway.device.protocol.adapter.colorlight.standard.ColorLightDeviceRegistrationProvider;
+import com.gateway.device.protocol.adapter.colorlight.standard.*;
 import com.gateway.device.protocol.api.DeviceAuthStore;
 import com.gateway.device.protocol.base.colorlight.standard.ColorLightAccount;
 import com.gateway.device.protocol.base.colorlight.standard.discovery.ColorLightDiscoveryProvider;
 import com.gateway.device.protocol.base.colorlight.standard.discovery.ColorLightSubnetProbe;
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.common.constant.DeviceVendor;
 import com.gateway.device.protocol.common.constant.VendorDefaultPort;
-import com.gateway.device.protocol.common.discovery.DiscoveryConst;
 import com.gateway.device.protocol.model.discovery.DeviceVendorMapping;
 import com.gateway.device.transport.codec.colorlight.standard.ColorLightHttpCodec;
 import com.gateway.device.transport.netty.NettyTransportManager;
@@ -66,16 +63,16 @@ public class ColorLightAdapterConfig {
                 .orElse(VendorDefaultPort.COLOR_LIGHT_STANDARD.getPort());
 
         int timeoutMs = clMappings.stream()
-                .filter(m -> m.getTimeoutMs() != DiscoveryConst.DEFAULT_TIMEOUT_MS)
+                .filter(m -> m.getTimeoutMs() != GatewayTimeoutConstants.DISCOVERY_DEFAULT_TIMEOUT_MS)
                 .findFirst()
                 .map(DeviceVendorMapping::getTimeoutMs)
-                .orElse(DiscoveryConst.DEFAULT_TIMEOUT_MS);
+                .orElse(GatewayTimeoutConstants.DISCOVERY_DEFAULT_TIMEOUT_MS);
 
         int concurrency = clMappings.stream()
-                .filter(m -> m.getConcurrency() != DiscoveryConst.DEFAULT_CONCURRENCY)
+                .filter(m -> m.getConcurrency() != GatewayTimeoutConstants.DISCOVERY_DEFAULT_TIMEOUT_MS)
                 .findFirst()
                 .map(DeviceVendorMapping::getConcurrency)
-                .orElse(DiscoveryConst.DEFAULT_CONCURRENCY);
+                .orElse(GatewayTimeoutConstants.DISCOVERY_DEFAULT_TIMEOUT_MS);
 
         log.info("ColorLight subnet probe: subnets={} port={} timeout={}ms concurrency={}",
                 subnets, port, timeoutMs, concurrency);
@@ -112,10 +109,12 @@ public class ColorLightAdapterConfig {
     public ColorLightDeviceRegistrationProvider colorLightDeviceRegistrationProvider(
             NettyTransportManager transportManager,
             ColorLightCredentialStore credentialStore,
-            ColorLightHttpCodec codec,
-            DeviceAuthStore deviceAuthManager) {
-        ColorLightDeviceRegistrationProvider provider = new ColorLightDeviceRegistrationProvider(transportManager, credentialStore, codec);
-        provider.setAuthStore(deviceAuthManager);
-        return provider;
+            ColorLightHttpCodec codec) {
+        return new ColorLightDeviceRegistrationProvider(transportManager, credentialStore, codec);
+    }
+
+    @Bean
+    public ColorLightComplianceValidator colorLightComplianceValidator() {
+        return new ColorLightComplianceValidator();
     }
 }

@@ -109,7 +109,8 @@ public class TargetToSelectorMapper {
                 || "JET_FILE_II".equals(normalized)) {
             return DeviceVendor.JET_FILE_II_STANDARD;
         }
-        if ("COLORLIGHT".equals(normalized) || "COLOR_LIGHT".equals(normalized)) {
+        if ("COLORLIGHT".equals(normalized) || "COLOR_LIGHT".equals(normalized)
+                || "COLORIGHT".equals(normalized)) {
             return DeviceVendor.COLOR_LIGHT_STANDARD;
         }
         try {

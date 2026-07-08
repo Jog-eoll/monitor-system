@@ -9,16 +9,8 @@ import com.gateway.device.protocol.base.colorlight.standard.codec.ColorLightHttp
 import com.gateway.device.protocol.base.colorlight.standard.codec.ColorLightHttpResponse;
 import com.gateway.device.protocol.base.colorlight.standard.helper.ColorLightProgramBuilder;
 import com.gateway.device.protocol.base.colorlight.standard.model.MultipartPart;
-import com.gateway.device.protocol.base.colorlight.standard.model.vsn.VsnItem;
-import com.gateway.device.protocol.base.colorlight.standard.model.vsn.VsnRegion;
-import com.gateway.device.protocol.base.colorlight.standard.model.vsn.base.DisplayRect;
-import com.gateway.device.protocol.base.colorlight.standard.model.vsn.base.FileSource;
-import com.gateway.device.protocol.base.colorlight.standard.model.vsn.enums.ItemType;
-import com.gateway.device.protocol.base.colorlight.standard.model.vsn.enums.PathType;
-import com.gateway.device.protocol.base.colorlight.standard.model.vsn.enums.ReserveMode;
 import com.gateway.device.protocol.common.capability.CommonDeviceCapability;
 import com.gateway.device.protocol.common.capability.depend.DeviceCapability;
-import com.gateway.device.protocol.common.constant.MediaType;
 import com.gateway.device.protocol.common.file.MediaFileEntry;
 import com.gateway.device.protocol.model.CommandResult;
 import com.gateway.device.protocol.model.DeviceContext;
@@ -27,15 +19,27 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 
 /**
- * ColorLight 混合多媒体上传 —— POST /api/program/multi.vsn。
+ * ColorLight 多页面节目上传 —— 每个媒体文件对应一个独立的节目页。
+ *
+ * <p>流程（对齐 Web UI 调用顺序）：</p>
+ * <ol>
+ *   <li>构建多页 VSN + 媒体文件 multipart → POST /api/program/{name}.vsn</li>
+ *   <li>设置默认缩略图 → PUT /api/programthumbnail/{name}.vsn（非致命）</li>
+ * </ol>
  */
 @Slf4j
 public class ColorLightMediaMultiUploadHandler extends AbstractColorLightHttpHandler<MediaMultiUploadParams> {
 
-    public static final String DEFAULT_MULTI_NAME = "default_multi_media";
+    /**
+     * 默认多页面节目名（不含 .vsn 扩展名）
+     */
+    public static final String DEFAULT_MULTI_PROGRAM_NAME = "default_mutli_media_program";
 
     public ColorLightMediaMultiUploadHandler(DeviceTransport transport,
                                              ColorLightCredentialStore credentialStore,
@@ -52,13 +56,13 @@ public class ColorLightMediaMultiUploadHandler extends AbstractColorLightHttpHan
     public CommandResult execute(DeviceContext device, MediaMultiUploadParams params) {
         List<MediaFileEntry> files = params.getMediaFiles();
         if (files == null || files.isEmpty()) {
-            return failureResult("CL_MULTI_EMPTY", "Media file list is empty");
+            return failureResult("CL_MULTI_PG_EMPTY", "Media file list is empty");
         }
 
         // order 去重检查
         long distinctOrders = files.stream().mapToInt(MediaFileEntry::getOrder).distinct().count();
         if (distinctOrders < files.size()) {
-            return failureResult("CL_MULTI_DUP_ORDER", "mediaFiles 中存在重复的 order 值");
+            return failureResult("CL_MULTI_PG_DUP_ORDER", "mediaFiles 中存在重复的 order 值");
         }
 
         // 按 order 升序排序
@@ -68,39 +72,18 @@ public class ColorLightMediaMultiUploadHandler extends AbstractColorLightHttpHan
         int width = params.resolveWidth(device.getWidth());
         int height = params.resolveHeight(device.getHeight());
 
-        List<VsnRegion> regions = new ArrayList<>();
-        int layer = 1;
-        for (MediaFileEntry entry : sorted) {
-            VsnItem item = VsnItem.builder()
-                    .type(entry.getMediaType() == MediaType.VIDEO
-                            ? ItemType.VIDEO
-                            : ItemType.PICTURE)
-                    .volume(1.0f)
-                    .alpha(entry.getMediaType() == MediaType.VIDEO ? null : 1.0f)
-                    .reserveAS(ReserveMode.FIT_XY)
-                    .fileSource(FileSource.builder()
-                            .isRelative(PathType.RELATIVE)
-                            .filePath(ColorLightProgramBuilder.buildFileSourcePath(DEFAULT_MULTI_NAME, entry.getFileName()))
-                            .build())
-                    .build();
-            VsnRegion region = VsnRegion.builder()
-                    .layer(layer++)
-                    .rect(DisplayRect.builder().x(0).y(0).width(width).height(height).build())
-                    .items(Collections.singletonList(item))
-                    .build();
-            regions.add(region);
-        }
-
-        String vsnJson = ColorLightProgramBuilder.buildMixed(regions, width, height);
+        // ── Step 1: 构建多页 VSN + 媒体文件 multipart 上传 ──
+        // POST /api/program/{name}.vsn
+        String vsnJson = ColorLightProgramBuilder.buildMultiPage(sorted, DEFAULT_MULTI_PROGRAM_NAME, width, height);
         byte[] vsnBytes = vsnJson.getBytes(StandardCharsets.UTF_8);
 
-        log.debug("[{}] 混合媒体上传: program={}.vsn  {} 个文件  vsn={}B  vsnJson={}",
-                device.getIp(), DEFAULT_MULTI_NAME, files.size(), vsnBytes.length, vsnJson);
+        log.debug("[{}] 多页面节目上传: program={}.vsn  {} 个文件  vsn={}B  vsnJson={}",
+                device.getIp(), DEFAULT_MULTI_PROGRAM_NAME, files.size(), vsnBytes.length, vsnJson);
 
         // 构建 multipart: f1=VSN, f2..fN=媒体文件
         List<MultipartPart> parts = new ArrayList<>();
         parts.add(MultipartPart.builder()
-                .name("f1").fileName(DEFAULT_MULTI_NAME + ".vsn")
+                .name("f1").fileName(DEFAULT_MULTI_PROGRAM_NAME + ".vsn")
                 .data(vsnBytes).build());
         int idx = 2;
         for (MediaFileEntry entry : sorted) {
@@ -116,11 +99,15 @@ public class ColorLightMediaMultiUploadHandler extends AbstractColorLightHttpHan
 
         Map.Entry<String, byte[]> result = ColorLightProgramBuilder.buildMultipartBody(parts);
         ColorLightHttpResponse resp = postMultipart(device,
-                ColorLightApi.MEDIA_UPLOAD.resolvePath(DEFAULT_MULTI_NAME),
+                ColorLightApi.MEDIA_UPLOAD.resolvePath(DEFAULT_MULTI_PROGRAM_NAME),
                 result.getValue(), result.getKey());
         if (resp == null || resp.getStatusCode() != HttpURLConnection.HTTP_OK) {
-            return failureResult("CL_MULTI_FAIL", "Failed to upload multi-media program");
+            return failureResult("CL_MULTI_PG_FAIL", "Failed to upload multi-page program media");
         }
+
+        // ── Step 1(置后):设置默认缩略图（非致命） ──
+        postSetThumbnail(device, DEFAULT_MULTI_PROGRAM_NAME);
+
         return successResult();
     }
 }

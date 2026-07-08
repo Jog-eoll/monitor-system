@@ -3,7 +3,7 @@ device:
   # 设备自动发现
   discovery:
     enabled: true
-    scan-interval-minutes: 1
+    scan-interval-minutes: 5
     mappings:
       - vendor: JET_FILE_II_STANDARD
         port: 9520
@@ -15,12 +15,13 @@ device:
         sdk: true
       - vendor: COLOR_LIGHT_STANDARD
         ips:
-        #   - 192.168.113.129
-        #   - 192.168.113.109
+          #- 192.168.113.129
+          #- 192.168.113.109
+          #- 192.168.1.181
+          - 192.168.113.181
       - vendor: COLOR_LIGHT_STANDARD
         port: 8989
         subnets:
-          - 192.168.113.1/24
           - 192.168.1.1/24
         timeout-ms: 3000
         concurrency: 20
@@ -44,6 +45,21 @@ device:
                 - "T30"
         default:
           enabled: true
+      COLOR_LIGHT_STANDARD:
+        A2K-series:
+          rules:
+            - field: model
+              expected:
+                - "A2K"
+                - "a2k"
+        A35-series:
+          rules:
+            - field: model
+              expected:
+                - "A35"
+                - "a35"
+        default:
+          enabled: true
   fonts:
     local-path: "D:/Projects/libs/fonts"
 
@@ -55,6 +71,12 @@ device:
       font: CN_16x16
       effect-in: MOVE_LEFT
       effect-out: FAN_IN
+    accounts:
+      # (默认)
+      - accountId: "administrator"
+        password: "123456"
+      - accountId: "admin"
+        password: "123456"
 
   NovaStar:
     ViplexCore:
@@ -85,8 +107,10 @@ device:
 
   ColorLight:
     accounts:
+      # 旧固件(默认)
       - accountId: "admin"
         password: "console"
+      # 新固件(默认)
       - accountId: "admin"
         password: "Console@123"
 

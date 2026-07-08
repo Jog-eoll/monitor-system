@@ -2,13 +2,15 @@ package com.gateway.device.core.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.gateway.device.core.config.DiscoveryProperties;
-import com.gateway.device.core.event.DeviceDiscoveredEvent;
+import com.gateway.device.core.event.logger.DeviceRegisteredEvent;
 import com.gateway.device.core.executor.DeviceCommandExecutor;
 import com.gateway.device.core.router.ProtocolRouter;
+import com.gateway.device.core.store.DeviceRegistryManager;
 import com.gateway.device.protocol.api.*;
 import com.gateway.device.protocol.common.constant.DeviceVendor;
 import com.gateway.device.protocol.common.constant.ProtocolConstant;
 import com.gateway.device.protocol.model.DeviceContext;
+import com.gateway.device.protocol.model.RegistrationSource;
 import com.gateway.device.protocol.model.discovery.ComplianceGroupConfig;
 import com.gateway.device.protocol.model.discovery.DeviceVendorMapping;
 import com.gateway.device.protocol.model.discovery.ExplicitIpDiscoveredDevice;
@@ -41,7 +43,7 @@ public class AutoDiscoveryService {
     private static final int INITIAL_DELAY_SEC = 5;
 
     private final DiscoveryProperties properties;
-    private final DeviceManagementService deviceManagementService;
+    private final DeviceRegistryManager deviceRegistry;
     private final ProtocolRouter router;
     private final TaskScheduler taskScheduler;
     private final Map<DeviceVendor, DeviceComplianceValidator> validators;
@@ -51,10 +53,11 @@ public class AutoDiscoveryService {
     private final NettyTransportManager transportManager;
     private final ApplicationEventPublisher eventPublisher;
     private final DeviceCommandExecutor commandExecutor;
+    private final DeviceAuthStore authStore;
     private final AtomicBoolean scanning = new AtomicBoolean();
 
     public AutoDiscoveryService(DiscoveryProperties properties,
-                                DeviceManagementService deviceManagementService,
+                                DeviceRegistryManager deviceRegistry,
                                 ProtocolRouter router,
                                 TaskScheduler taskScheduler,
                                 List<DeviceComplianceValidator> validatorList,
@@ -63,9 +66,10 @@ public class AutoDiscoveryService {
                                 List<DeviceRegistrationProvider> regProviderList,
                                 NettyTransportManager transportManager,
                                 ApplicationEventPublisher eventPublisher,
-                                DeviceCommandExecutor commandExecutor) {
+                                DeviceCommandExecutor commandExecutor,
+                                DeviceAuthStore authStore) {
         this.properties = properties;
-        this.deviceManagementService = deviceManagementService;
+        this.deviceRegistry = deviceRegistry;
         this.router = router;
         this.taskScheduler = taskScheduler;
         this.validators = new EnumMap<>(DeviceVendor.class);
@@ -87,6 +91,7 @@ public class AutoDiscoveryService {
         this.transportManager = transportManager;
         this.eventPublisher = eventPublisher;
         this.commandExecutor = commandExecutor;
+        this.authStore = authStore;
     }
 
     private static String attr(Map<String, Object> attrs, String primary, String fallback) {
@@ -150,7 +155,7 @@ public class AutoDiscoveryService {
             if (!m.hasIps()) continue;
             for (String ip : m.getIps()) {
                 // 从注册表按 IP 查找 deviceId，检查是否忙碌
-                String registeredId = deviceManagementService.listAll().stream()
+                String registeredId = deviceRegistry.list().stream()
                         .filter(d -> ip.equals(d.getIp()))
                         .findFirst()
                         .map(DeviceContext::getDeviceId).orElse(null);
@@ -161,7 +166,7 @@ public class AutoDiscoveryService {
                 try {
                     ExplicitIpDiscoveredDevice dd = new ExplicitIpDiscoveredDevice(ip, m.effectivePort());
                     discoveredIps.add(ip);
-                    registerDevice(dd, m);
+                    registerDevice(dd, m, RegistrationSource.CONFIG_IP);
                 } catch (Exception e) {
                     log.error("[{}] 显式 IP 注册失败: {}", ip, e.getMessage());
                 }
@@ -211,8 +216,14 @@ public class AutoDiscoveryService {
                         log.debug("[{}] 设备忙碌中，跳过 SDK 注册", dd.getIp());
                         continue;
                     }
+                    // 守卫：已登出设备不触发自动注册
+                    DeviceContext existingSdk = deviceRegistry.get(key).orElse(null);
+                    if (existingSdk != null && !existingSdk.isLoggedIn()) {
+                        log.debug("[{}] 设备已登出，跳过 SDK 注册", dd.getIp());
+                        continue;
+                    }
                     discoveredIps.add(dd.getIp());
-                    registerDevice(dd, m);
+                    registerDevice(dd, m, RegistrationSource.SDK_DISCOVERY);
                 }
             } catch (Exception e) {
                 log.error("[{}] SDK 扫描失败: {}", m.getVendor(), e.getMessage());
@@ -220,14 +231,12 @@ public class AutoDiscoveryService {
         }
 
         if (properties.isMarkOfflineWhenMissing()) {
-            for (DeviceContext d : deviceManagementService.listAll()) {
+            for (DeviceContext d : deviceRegistry.list()) {
                 if (d.isOnline() && !discoveredIps.contains(d.getIp())) {
-                    deviceManagementService.markOffline(d.getDeviceId());
-                log.warn("[{}] 设备离线（扫描未发现）", d.getIp());
+                    deviceRegistry.markOffline(d.getDeviceId());
+                    log.warn("[{}] 设备离线（扫描未发现）", d.getIp());
                 }
             }
-        } else {
-            log.debug("自动发现未启用缺失设备离线标记，本轮发现 {} 个 IP", discoveredIps.size());
         }
     }
 
@@ -289,22 +298,24 @@ public class AutoDiscoveryService {
                     log.debug("[{}:{}] 设备忙碌中，跳过本次扫描", dd.getIp(), dd.getSourcePort());
                     continue;
                 }
-                DeviceContext existing = deviceManagementService.get(deviceId).orElse(null);
+                // 设备已存在时仍走注册流水线以刷新设备信息（固件、屏幕尺寸等可能已变化）
+                DeviceContext existing = deviceRegistry.get(deviceId).orElse(null);
                 if (existing != null) {
+                    // 守卫：已登出设备不触发自动注册
+                    if (!existing.isLoggedIn()) {
+                        log.debug("[{}] 设备已登出，跳过自动注册", dd.getIp());
+                        continue;
+                    }
                     boolean vendorChanged = existing.getVendor() != mapping.getVendor();
                     DeviceDiscoveryProvider identityProvider = discoveryProviders.get(mapping.getVendor());
                     boolean identityChanged = checkIdentityChanged(existing, dd, identityProvider);
 
                     if (vendorChanged || identityChanged) {
-                        log.info("[{}] 设备身份变更 (vendor={}, identity={})，强制重注册",
+                        log.info("[{}] 设备身份变更 (vendor={}, identity={})，将重新注册",
                                 dd.getIp(), vendorChanged, identityChanged);
-                    } else {
-                        deviceManagementService.markOnline(deviceId);
-                        log.debug("[{}] 设备无变更，在线", dd.getIp());
-                        continue;
                     }
                 }
-                registerDevice(dd, mapping);
+                registerDevice(dd, mapping, RegistrationSource.CONFIG_AUTO_DISCOVERY);
             }
         }
     }
@@ -401,7 +412,8 @@ public class AutoDiscoveryService {
      * @param mapping 厂商映射配置
      * @return 注册成功的 DeviceContext，失败返回 null
      */
-    public DeviceContext registerDevice(DiscoveredDevice dd, DeviceVendorMapping mapping) {
+    public DeviceContext registerDevice(DiscoveredDevice dd, DeviceVendorMapping mapping,
+                                        RegistrationSource source) {
         DeviceVendor vendor = mapping.getVendor();
         String ip = dd.getIp();
 
@@ -419,6 +431,23 @@ public class AutoDiscoveryService {
             }
 
             DeviceContext tempCtx = buildTempContext(dd, vendor, adapter);
+
+            // 通用前置：按 IP 查找已有 DeviceContext
+            DeviceContext existingByIp = deviceRegistry.list().stream()
+                    .filter(d -> ip.equals(d.getIp()))
+                    .findFirst().orElse(null);
+            if (existingByIp != null) {
+                // 有效设备（在线+已登录）→ 跳过注册
+                if (existingByIp.isOnline() && existingByIp.isLoggedIn()) {
+                    log.debug("[{}] 设备已在线且已登录，跳过注册", ip);
+                    return existingByIp;
+                }
+                // 离线或已注销 → SN 仍是有效硬件标识，补充到 tempCtx 避免 SDK 搜索
+                if (tempCtx.getSn() == null && existingByIp.getSn() != null) {
+                    tempCtx.setSn(existingByIp.getSn());
+                    log.debug("[{}] 从注册表补充 SN={}", ip, existingByIp.getSn());
+                }
+            }
 
             DeviceRegistrationProvider regProvider = registrationProviders.get(vendor);
             if (regProvider == null) {
@@ -455,6 +484,13 @@ public class AutoDiscoveryService {
             }
 
             String deviceId = resolveDeviceId(attrs, ip);
+            DeviceContext existingDev = deviceRegistry.get(deviceId).orElse(null);
+            boolean isNew = existingDev == null;
+
+            // 注册流水线全部成功后持久化凭据
+            tempCtx.setDeviceId(deviceId);
+            regProvider.persistAuth(tempCtx, authStore);
+
             DeviceContext device = DeviceContext.builder()
                     .deviceId(deviceId)
                     .ip(ip)
@@ -463,6 +499,7 @@ public class AutoDiscoveryService {
                     .transportType(adapter.transportType())
                     .groupLabel(groupLabel)
                     .online(true)
+                    .loggedIn(true)  // fetchRegistrationInfo 内部已完成认证
                     .capabilities(adapter.capabilities())
                     .attributes(attrs)
                     .width(attrInt(attrs, "width"))
@@ -470,12 +507,14 @@ public class AutoDiscoveryService {
                     .sn(firstAttr(attrs, "serialNo", "sn", "serialno"))
                     .macAddr(ProtocolConstant.formatMac(firstAttr(attrs, "macAddr", "mac")))
                     .build();
-            deviceManagementService.register(device);
-            regProvider.postRegister(device);
-            eventPublisher.publishEvent(new DeviceDiscoveredEvent(this,
-                    Collections.singletonList(device)));
-            log.info("[{}] 发现并注册设备: 厂商={} 分组={} 宽={} 高={} 属性={}",
-                    ip, vendor, groupLabel, device.getWidth(), device.getHeight(), attrs);
+            deviceRegistry.register(device);
+            eventPublisher.publishEvent(new DeviceRegisteredEvent(
+                    this, device, source, isNew));
+
+            String action = isNew ? "注册" : "更新";
+            log.info("[{}] {}设备: 厂商={} 分组={} 来源={} 登录={} 宽={} 高={} 属性={}",
+                    ip, action, vendor, groupLabel, source,
+                    device.isLoggedIn(), device.getWidth(), device.getHeight(), attrs);
             return device;
 
         } catch (Exception e) {

@@ -39,6 +39,11 @@ public class DeviceSelector {
     private Boolean onlineOnly;
 
     /**
+     * 仅已登录设备
+     */
+    private Boolean loggedInOnly;
+
+    /**
      * 要求具备的能力
      */
     private Set<DeviceCapability<?>> requiredCapabilities;
@@ -64,6 +69,17 @@ public class DeviceSelector {
     private Map<String, String> attributeFilters;
 
     /**
+     * 是否显式指定了目标设备（通过 deviceId / IP / SN / MAC 精确定位），
+     * 用于区分"明确指定但设备未就绪"和"广播式无匹配"两种场景。
+     */
+    public boolean isExplicit() {
+        return CollectionUtils.isNotEmpty(deviceIds)
+                || CollectionUtils.isNotEmpty(ips)
+                || CollectionUtils.isNotEmpty(sns)
+                || CollectionUtils.isNotEmpty(macs);
+    }
+
+    /**
      * 将全部筛选维度转为 Filter 列表，Resolver 统一遍历执行。
      */
     public List<DeviceFilter> toFilters() {
@@ -83,6 +99,9 @@ public class DeviceSelector {
         }
         if (Boolean.TRUE.equals(onlineOnly)) {
             filters.add(DeviceContext::isOnline);
+        }
+        if (Boolean.TRUE.equals(loggedInOnly)) {
+            filters.add(DeviceContext::isLoggedIn);
         }
         if (CollectionUtils.isNotEmpty(requiredCapabilities)) {
             Set<DeviceCapability<?>> c = this.requiredCapabilities;

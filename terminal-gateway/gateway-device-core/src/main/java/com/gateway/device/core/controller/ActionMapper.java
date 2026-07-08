@@ -95,7 +95,7 @@ public class ActionMapper {
 
     private static final Map<String, DeviceCapability<?>> ACTION_MAP;
     private static final Map<String, String> ACTION_ALIASES;
-    private static final DeviceCapability<?> DEVICE_SEARCH_CAPABILITY = DeviceCapability.of("DEVICE_SEARCH");
+    private static final DeviceCapability<?> DEVICE_SEARCH_CAPABILITY = CommonDeviceCapability.DEVICE_SEARCH;
 
     static {
         Map<String, DeviceCapability<?>> m = new LinkedHashMap<>();

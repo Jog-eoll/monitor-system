@@ -1,6 +1,7 @@
-package com.gateway.device.transport.netty;
+package com.gateway.device.transport.netty.tcp;
 
-import com.gateway.device.protocol.model.DeviceContext;
+import com.gateway.device.transport.netty.ConnectionHealthChecker;
+import com.gateway.device.transport.netty.NettyTransportConfig;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.channel.socket.SocketChannel;
@@ -8,7 +9,6 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.AttributeKey;
-import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -17,31 +17,18 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 设备 Channel 连接池 —— 维护 deviceKey → Channel 映射。
+ * TCP 二进制协议 Channel 连接池 —— deviceKey → Channel 映射。
  *
- * <p>TCP/HTTP Channel 按 deviceKey 池化复用，内建空闲检测和健康上报。
- * UDP 设备共享单个 DatagramChannel。</p>
+ * <p>按 vendor:ip:port 池化复用 NioSocketChannel，内建空闲检测和健康上报。
+ * 仅用于原始二进制 TCP 协议（JetFileII、NovaStar），HTTP 有独立的 {@code HttpChannelPool}。</p>
  */
 @Slf4j
-public class DeviceChannelPool {
+public class TcpChannelPool {
 
-    private static final AttributeKey<String> DEVICE_KEY_ATTR = AttributeKey.valueOf("deviceKey");
+    static final AttributeKey<String> DEVICE_KEY_ATTR = AttributeKey.valueOf("deviceKey");
 
-    /**
-     * deviceKey = vendor:ip:port
-     */
     private final ConcurrentMap<String, Channel> channels = new ConcurrentHashMap<>();
 
-    /**
-     * 共享的 UDP Channel（所有 UDP 设备复用）
-     */
-    @Setter
-    @Getter
-    private volatile Channel sharedUdpChannel;
-
-    /**
-     * 健康检查器（可选，设置后池化 Channel 自动上报健康状态）
-     */
     @Setter
     private ConnectionHealthChecker healthChecker;
 
@@ -49,23 +36,9 @@ public class DeviceChannelPool {
     // Key 生成
     // ════════════════════════════════════════════════════
 
-    /**
-     * 生成 deviceKey
-     */
     public static String deviceKey(String vendor, String ip, int port) {
         return vendor + ":" + ip + ":" + port;
     }
-
-    /**
-     * 从 DeviceContext 生成 deviceKey
-     */
-    public static String deviceKey(DeviceContext device) {
-        return device.getVendor().name() + ":" + device.getIp() + ":" + device.getPort();
-    }
-
-    // ════════════════════════════════════════════════════
-    // TCP/HTTP 连接池操作
-    // ════════════════════════════════════════════════════
 
     private static String parseHost(String deviceKey) {
         int first = deviceKey.indexOf(':');
@@ -78,13 +51,12 @@ public class DeviceChannelPool {
         return Integer.parseInt(deviceKey.substring(last + 1));
     }
 
+    // ════════════════════════════════════════════════════
+    // 连接池操作
+    // ════════════════════════════════════════════════════
+
     /**
-     * 获取或创建 TCP/HTTP Channel，复用 deviceKey 维度的活跃连接。
-     *
-     * @param deviceKey 设备标识
-     * @param group     Netty EventLoopGroup
-     * @param config    传输配置
-     * @return 活跃的 Channel
+     * 获取或创建 TCP Channel，复用 deviceKey 维度的活跃连接。
      */
     public Channel getOrCreate(String deviceKey, EventLoopGroup group,
                                NettyTransportConfig config) throws Exception {
@@ -113,10 +85,8 @@ public class DeviceChannelPool {
                     @Override
                     protected void initChannel(SocketChannel ch) {
                         ch.attr(DEVICE_KEY_ATTR).set(deviceKey);
-                        // 空闲检测：仅检测读空闲
                         ch.pipeline().addLast("idle",
                                 new IdleStateHandler(idleTimeoutSec, 0, 0, TimeUnit.SECONDS));
-                        // 空闲/异常 → 从池中移除
                         ch.pipeline().addLast("pool-guard", new ChannelInboundHandlerAdapter() {
                             @Override
                             public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
@@ -142,10 +112,10 @@ public class DeviceChannelPool {
                 })
                 .connect(parseHost(deviceKey), parsePort(deviceKey));
 
-        cf.sync(); // 阻塞等待连接建立
+        cf.sync();
         Channel channel = cf.channel();
         channels.put(deviceKey, channel);
-        log.info("新建池化 Channel: {}", deviceKey);
+        log.info("新建 TCP 池化 Channel: {}", deviceKey);
         return channel;
     }
 
@@ -153,20 +123,14 @@ public class DeviceChannelPool {
     // 基础操作
     // ════════════════════════════════════════════════════
 
-    /**
-     * 从池中移除并关闭 Channel（故障/超时时调用）。
-     */
     public void removeAndClose(String deviceKey) {
         Channel ch = channels.remove(deviceKey);
         if (ch != null && ch.isOpen()) {
             ch.close();
-            log.debug("已移除并关闭 Channel: {}", deviceKey);
+            log.debug("已移除并关闭 TCP Channel: {}", deviceKey);
         }
     }
 
-    /**
-     * 上报健康状态 —— 心跳成功。
-     */
     public void markAlive(String deviceKey) {
         if (healthChecker != null) {
             healthChecker.markAlive(deviceKey);
@@ -178,27 +142,16 @@ public class DeviceChannelPool {
     }
 
     // ════════════════════════════════════════════════════
-    // 内部工具
+    // 生命周期
     // ════════════════════════════════════════════════════
 
-    public boolean contains(String deviceKey) {
-        return channels.containsKey(deviceKey);
-    }
-
-    /**
-     * 关闭所有 Channel
-     */
     public void closeAll() {
-        Channel udp = sharedUdpChannel;
-        if (udp != null && udp.isOpen()) {
-            udp.close();
-        }
         channels.values().forEach(ch -> {
             if (ch != null && ch.isOpen()) {
                 ch.close();
             }
         });
         channels.clear();
-        log.info("连接池已关闭");
+        log.info("TCP 连接池已关闭");
     }
 }

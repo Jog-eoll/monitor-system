@@ -5,9 +5,11 @@ import com.gateway.device.protocol.base.jetfileii.standard.PacketBuilder;
 import com.gateway.device.protocol.base.jetfileii.standard.command.MainCmd;
 import com.gateway.device.protocol.base.jetfileii.standard.command.SubCmd;
 import com.gateway.device.protocol.base.jetfileii.standard.model.PacketMessage;
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.common.LittleEndianByteBufUtils;
 import com.gateway.device.protocol.common.constant.VendorDefaultPort;
 import com.gateway.device.protocol.common.discovery.DiscoveryConst;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -28,6 +30,7 @@ import java.util.*;
  *   }
  * }</pre>
  */
+@Slf4j
 public final class DeviceDiscovery {
 
     private DeviceDiscovery() {
@@ -37,14 +40,14 @@ public final class DeviceDiscovery {
      * 使用默认端口 9520、默认超时搜索设备
      */
     public static List<JetFileIIDiscoveredDevice> discover() throws IOException {
-        return discover(VendorDefaultPort.JET_FILE_II.getPort(), DiscoveryConst.DEFAULT_TIMEOUT_MS);
+        return discover(VendorDefaultPort.JET_FILE_II.getPort(), GatewayTimeoutConstants.DISCOVERY_DEFAULT_TIMEOUT_MS);
     }
 
     /**
      * 指定端口搜索设备
      */
     public static List<JetFileIIDiscoveredDevice> discover(int port) throws IOException {
-        return discover(port, DiscoveryConst.DEFAULT_TIMEOUT_MS);
+        return discover(port, GatewayTimeoutConstants.DISCOVERY_DEFAULT_TIMEOUT_MS);
     }
 
     /**
@@ -113,7 +116,7 @@ public final class DeviceDiscovery {
 
     /**
      * 解析 0x0301 回送 Arg 格式 (12B):
-     * [0-1] CPU 版本 (UWORD), [2-3] FPGA 版本 (UWORD),
+     * [0-1] CPU 版本 (UWORD), [2-3] Reserved (未知),
      * [4-7] IP 地址 (LE), [8] GG, [9] UU, [10-11] Rev
      */
     public static JetFileIIDiscoveredDevice parseReply(byte[] raw, String sourceIp, int sourcePort) {
@@ -121,10 +124,12 @@ public final class DeviceDiscovery {
         if (pkt == null || !pkt.isReply()) return null;
 
         byte[] arg = pkt.getArg();
+
+        log.debug("[{}]", LittleEndianByteBufUtils.toHex(arg));
+
         if (arg == null || arg.length < 10) return null;
 
         int cpuVersion = LittleEndianByteBufUtils.readUShortLE(arg, 0);
-        int fpgaVersion = LittleEndianByteBufUtils.readUShortLE(arg, 2);
         int gg = arg[8] & 0xFF;
         int uu = arg[9] & 0xFF;
 
@@ -143,7 +148,7 @@ public final class DeviceDiscovery {
         return JetFileIIDiscoveredDevice.builder()
                 .ip(deviceIp)
                 .gg(gg).uu(uu)
-                .cpuVersion(cpuVersion).fpgaVersion(fpgaVersion)
+                .cpuVersion(cpuVersion)
                 .sourcePort(sourcePort)
                 .build();
     }

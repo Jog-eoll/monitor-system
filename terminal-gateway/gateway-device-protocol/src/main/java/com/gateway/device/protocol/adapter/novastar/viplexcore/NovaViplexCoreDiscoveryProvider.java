@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.gateway.device.protocol.api.DeviceDiscoveryProvider;
 import com.gateway.device.protocol.api.DiscoveredDevice;
 import com.gateway.device.protocol.base.novastar.viplexcore.*;
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.common.JsonCustomMapper;
 import com.gateway.device.protocol.common.constant.DeviceVendor;
 import com.gateway.device.protocol.common.constant.ProtocolConstant;
@@ -74,8 +75,7 @@ public class NovaViplexCoreDiscoveryProvider implements DeviceDiscoveryProvider 
         Duration timeout = Duration.ofMillis(timeoutMs);
 
         // 1. 搜索所有设备
-        ViplexResponse searchResp =
-                channel.searchAllDevices(timeout);
+        ViplexResponse searchResp = channel.searchAllDevices(timeout);
         if (!searchResp.isSuccess()) {
             log.debug("ViplexCore 搜索无结果: {}", searchResp.getData());
             return Collections.emptyList();
@@ -102,7 +102,7 @@ public class NovaViplexCoreDiscoveryProvider implements DeviceDiscoveryProvider 
             ViplexCoreAccount known = channel.getKnownAccount(sn);
             if (known != null) {
                 ViplexResponse resp = channel.login(
-                        sn, known.getAccountId(), known.getPassword(), Duration.ofSeconds(15), LoginType.MANAGEMENT);
+                        sn, known.getAccountId(), known.getPassword(), Duration.ofMillis(GatewayTimeoutConstants.DEVICE_LOGIN_TIMEOUT_MS), LoginType.MANAGEMENT);
                 if (resp.isSuccess()) {
                     loggedIn = true;
                     log.debug("ViplexCore 已知账号登录成功 SN={}", sn);
@@ -120,7 +120,7 @@ public class NovaViplexCoreDiscoveryProvider implements DeviceDiscoveryProvider 
                         continue;
                     }
                     ViplexResponse resp = channel.login(
-                            sn, account.getAccountId(), account.getPassword(), Duration.ofSeconds(15), LoginType.MANAGEMENT);
+                            sn, account.getAccountId(), account.getPassword(), Duration.ofMillis(GatewayTimeoutConstants.DEVICE_LOGIN_TIMEOUT_MS), LoginType.MANAGEMENT);
                     if (resp.isSuccess()) {
                         loggedIn = true;
                         channel.rememberAccount(sn, account);
@@ -189,7 +189,7 @@ public class NovaViplexCoreDiscoveryProvider implements DeviceDiscoveryProvider 
 
         ViplexResponse resp = channel.execute(
                 SdkFunction.NV_GET_FIRMWARE_INFOS_ASYNC, params.toString(),
-                Duration.ofSeconds(10));
+                Duration.ofMillis(GatewayTimeoutConstants.DEVICE_OPERATION_DEFAULT_MS));
 
         return resp.isSuccess() ? resp.dataAsJson() : null;
     }
@@ -201,7 +201,7 @@ public class NovaViplexCoreDiscoveryProvider implements DeviceDiscoveryProvider 
         try {
             ViplexResponse resp = channel.execute(
                     SdkFunction.NV_GET_DISPLAY_INFO_ASYNC, params.toString(),
-                    Duration.ofSeconds(10));
+                    Duration.ofMillis(GatewayTimeoutConstants.DEVICE_OPERATION_DEFAULT_MS));
             if (resp.isSuccess()) {
                 JsonNode data = resp.dataAsJson();
                 log.debug("ViplexCore 显示信息 SN={} data={}", sn, data);

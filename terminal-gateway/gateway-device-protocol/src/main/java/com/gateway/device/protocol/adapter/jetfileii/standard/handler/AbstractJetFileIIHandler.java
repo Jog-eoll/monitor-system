@@ -4,6 +4,7 @@ import com.gateway.device.protocol.api.CapabilityHandler;
 import com.gateway.device.protocol.api.DeviceTransport;
 import com.gateway.device.protocol.base.jetfileii.standard.helper.JetFileIIMessaging;
 import com.gateway.device.protocol.base.jetfileii.standard.transfer.FileTransfer;
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.model.CommandResult;
 import com.gateway.device.protocol.model.DeviceContext;
 import com.gateway.device.protocol.model.params.depend.CommandParams;
@@ -57,7 +58,7 @@ public abstract class AbstractJetFileIIHandler<P extends CommandParams> implemen
      * 默认 5 秒（JetFileII 通用回复超时）。
      */
     protected Duration getTimeout() {
-        return Duration.ofSeconds(5);
+        return Duration.ofMillis(GatewayTimeoutConstants.DEVICE_OPERATION_QUICK_MS);
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.gateway.device.protocol.base.jetfileii.standard.sys;
 
 import com.gateway.device.protocol.base.jetfileii.standard.command.FileType;
+import com.gateway.device.protocol.base.jetfileii.standard.command.ProtocolConst;
 import com.gateway.device.protocol.base.jetfileii.standard.transfer.FileTransfer;
 
 import java.io.IOException;
@@ -18,7 +19,6 @@ import java.util.List;
  */
 public final class SequentSysHelper {
 
-    private static final int SYS_CHUNK_SIZE = 768;
     private static final String SYS_FILE_NAME = SysFileName.SEQUENT_SYS;
 
     private SequentSysHelper() {
@@ -43,7 +43,7 @@ public final class SequentSysHelper {
                 e.pictureEntry();
             }
         }
-        ft.writeSysFile(SYS_FILE_NAME, sf.toBytes(), SYS_CHUNK_SIZE);
+        ft.writeSysFile(SYS_FILE_NAME, sf.toBytes(), ProtocolConst.DEFAULT_CHUNK_SIZE);
         ft.replayPlaylist();
     }
 
@@ -61,7 +61,7 @@ public final class SequentSysHelper {
         } else if (isPicturePath(filePath)) {
             e.pictureEntry();
         }
-        ft.writeSysFile(SYS_FILE_NAME, sf.toBytes(), SYS_CHUNK_SIZE);
+        ft.writeSysFile(SYS_FILE_NAME, sf.toBytes(), ProtocolConst.DEFAULT_CHUNK_SIZE);
         ft.replayPlaylist();
     }
 
@@ -72,7 +72,7 @@ public final class SequentSysHelper {
         SequentSysFile sf = new SequentSysFile();
         sf.getHeader().setCurrentIndex((short) 0);
         sf.getHeader().setField((short) SequentSysFile.FIELD_EXPANDED);
-        ft.writeSysFile(SYS_FILE_NAME, sf.toBytes(), SYS_CHUNK_SIZE);
+        ft.writeSysFile(SYS_FILE_NAME, sf.toBytes(), ProtocolConst.DEFAULT_CHUNK_SIZE);
         ft.replayPlaylist();
     }
 

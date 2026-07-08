@@ -7,7 +7,7 @@ import com.gateway.device.protocol.api.ProtocolCodec;
 import com.gateway.device.protocol.base.colorlight.standard.ColorLightApi;
 import com.gateway.device.protocol.base.colorlight.standard.codec.ColorLightHttpRequest;
 import com.gateway.device.protocol.base.colorlight.standard.codec.ColorLightHttpResponse;
-import com.gateway.device.protocol.base.colorlight.standard.model.api.response.NtpInfo;
+import com.gateway.device.protocol.base.colorlight.standard.model.api.response.SyncProgramModeInfo;
 import com.gateway.device.protocol.common.capability.CommonDeviceCapability;
 import com.gateway.device.protocol.common.capability.depend.DeviceCapability;
 import com.gateway.device.protocol.model.CommandResult;
@@ -17,7 +17,8 @@ import com.gateway.device.protocol.model.params.EmptyParams;
 import java.net.HttpURLConnection;
 
 /**
- * NTP 查询 Handler（注册为 ColorLightCapability.NTP_GET）
+ * NTP 查询 Handler（注册为 CommonDeviceCapability.NTP_GET）。
+ * 通过 GET /api/sync_program_mode.json 获取 NTP 等同步配置。
  */
 public class ColorLightNtpGetHandler extends AbstractColorLightHttpHandler<EmptyParams> {
     public ColorLightNtpGetHandler(DeviceTransport transport, ColorLightCredentialStore credentialStore,
@@ -32,11 +33,11 @@ public class ColorLightNtpGetHandler extends AbstractColorLightHttpHandler<Empty
 
     @Override
     public CommandResult execute(DeviceContext device, EmptyParams params) {
-        ColorLightHttpResponse resp = send(device, ColorLightApi.NTP_GET);
+        ColorLightHttpResponse resp = send(device, ColorLightApi.SYNC_PROGRAM_MODE_GET);
         if (resp == null || resp.getStatusCode() != HttpURLConnection.HTTP_OK) {
             return failureResult("CL_NTP_GET_FAIL", "Failed to get NTP config");
         }
-        NtpInfo ntp = parseJson(resp, NtpInfo.class);
-        return successResult(ntp);
+        SyncProgramModeInfo info = parseJson(resp, SyncProgramModeInfo.class);
+        return successResult(info);
     }
 }

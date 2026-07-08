@@ -30,9 +30,9 @@ public final class ProtocolConst {
      */
     public static final int ARG_UNIT_SIZE = 4;
     /**
-     * 默认分包大小
+     * 默认拆包大小（单次文件传输数据块字节数：768|1024）
      */
-    public static final int DEFAULT_PACK_SIZE = 1024;
+    public static final int DEFAULT_CHUNK_SIZE = 768;
 
     private ProtocolConst() {
     }

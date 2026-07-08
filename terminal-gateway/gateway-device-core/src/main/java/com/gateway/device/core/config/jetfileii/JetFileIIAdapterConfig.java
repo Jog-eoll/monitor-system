@@ -2,7 +2,9 @@ package com.gateway.device.core.config.jetfileii;
 
 import com.gateway.device.core.config.FontsProperties;
 import com.gateway.device.protocol.adapter.jetfileii.standard.JetFileIIAdapter;
+import com.gateway.device.protocol.adapter.jetfileii.standard.JetFileIICredentialStore;
 import com.gateway.device.protocol.adapter.jetfileii.standard.JetFileIIDeviceRegistrationProvider;
+import com.gateway.device.protocol.api.DeviceAuthStore;
 import com.gateway.device.protocol.base.jetfileii.standard.helper.JetFileIIMessaging;
 import com.gateway.device.protocol.base.jetfileii.standard.text.NmgResources;
 import com.gateway.device.protocol.base.jetfileii.standard.text.NmgTextStyle;
@@ -51,8 +53,19 @@ public class JetFileIIAdapterConfig {
     }
 
     @Bean
+    public JetFileIICredentialStore jetFileIICredentialStore(JetFileIIProperties props) {
+        return new JetFileIICredentialStore(props.toJetFileIIAccounts());
+    }
+
+    @Bean
     public JetFileIIDeviceRegistrationProvider jetFileIIDeviceRegistrationProvider(
-            NettyTransportManager transportManager) {
-        return new JetFileIIDeviceRegistrationProvider(new JetFileIIMessaging(), transportManager);
+            NettyTransportManager transportManager,
+            JetFileIICredentialStore credentialStore,
+            DeviceAuthStore deviceAuthManager) {
+        JetFileIIMessaging messaging = new JetFileIIMessaging();
+        JetFileIIDeviceRegistrationProvider provider = new JetFileIIDeviceRegistrationProvider(
+                messaging, transportManager, credentialStore);
+        provider.setAuthStore(deviceAuthManager);
+        return provider;
     }
 }

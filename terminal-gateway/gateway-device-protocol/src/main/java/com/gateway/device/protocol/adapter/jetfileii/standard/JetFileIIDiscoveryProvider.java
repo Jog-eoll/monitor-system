@@ -32,7 +32,7 @@ public class JetFileIIDiscoveryProvider implements DeviceDiscoveryProvider {
 
     /**
      * 解析 0x0301 回送 Arg 格式 (12B):
-     * [0-1] CPU 版本, [2-3] FPGA 版本, [4-7] IP(LE), [8] GG, [9] UU, [10-11] Rev
+     * [0-1] CPU 版本, [2-3] Reserved (未知), [4-7] IP(LE), [8] GG, [9] UU, [10-11] Rev
      */
     @Override
     public DiscoveredDevice parseReply(byte[] raw, String sourceIp, int sourcePort) {

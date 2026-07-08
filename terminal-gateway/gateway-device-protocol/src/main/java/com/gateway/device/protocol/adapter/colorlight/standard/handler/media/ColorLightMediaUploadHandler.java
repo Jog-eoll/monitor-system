@@ -75,6 +75,10 @@ public class ColorLightMediaUploadHandler extends AbstractColorLightHttpHandler<
         if (resp == null || resp.getStatusCode() != HttpURLConnection.HTTP_OK) {
             return failureResult("CL_MEDIA_FAIL", "Failed to upload media program");
         }
+
+        // ── 设置默认缩略图（非致命） ──
+        postSetThumbnail(device, programName);
+
         return successResult();
     }
 }

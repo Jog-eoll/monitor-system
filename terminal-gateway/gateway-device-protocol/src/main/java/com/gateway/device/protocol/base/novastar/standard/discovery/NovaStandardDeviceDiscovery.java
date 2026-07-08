@@ -1,5 +1,6 @@
 package com.gateway.device.protocol.base.novastar.standard.discovery;
 
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.common.constant.VendorDefaultPort;
 import com.gateway.device.protocol.common.discovery.DiscoveryConst;
 
@@ -25,7 +26,7 @@ public final class NovaStandardDeviceDiscovery {
     }
 
     public static List<NovaStandardDiscoveredDevice> discover() throws IOException {
-        return discover(DiscoveryConst.DEFAULT_TIMEOUT_MS);
+        return discover(GatewayTimeoutConstants.DISCOVERY_DEFAULT_TIMEOUT_MS);
     }
 
     /**
@@ -73,7 +74,7 @@ public final class NovaStandardDeviceDiscovery {
                     NovaStandardDiscoveredDevice device = parseReply(data,
                             recvPacket.getAddress().getHostAddress(), recvPacket.getPort());
                     if (device != null) {
-                        String key = device.getSn() != null ? device.getSn() : device.getIp();
+                        String key = device.getAvon().getSn() != null ? device.getAvon().getSn() : device.getIp();
                         seen.putIfAbsent(key, device);
                     }
                 } catch (SocketTimeoutException e) {

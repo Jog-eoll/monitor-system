@@ -1,9 +1,9 @@
 package com.gateway.device.protocol.adapter.colorlight.standard;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.gateway.device.protocol.api.DeviceAuthStore;
 import com.gateway.device.protocol.api.DeviceRegistrationProvider;
 import com.gateway.device.protocol.api.DeviceTransport;
+import com.gateway.device.protocol.api.ParsedHttpResponse;
 import com.gateway.device.protocol.api.ProtocolCodec;
 import com.gateway.device.protocol.base.colorlight.standard.ColorLightAccount;
 import com.gateway.device.protocol.base.colorlight.standard.ColorLightApi;
@@ -12,8 +12,8 @@ import com.gateway.device.protocol.base.colorlight.standard.codec.ColorLightHttp
 import com.gateway.device.protocol.base.colorlight.standard.model.api.response.DeviceInfo;
 import com.gateway.device.protocol.base.colorlight.standard.model.api.response.DimensionInfo;
 import com.gateway.device.protocol.base.colorlight.standard.model.api.response.IfStatus;
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.common.JsonCustomMapper;
-import com.gateway.device.protocol.common.LittleEndianByteBufUtils;
 import com.gateway.device.protocol.common.constant.DeviceVendor;
 import com.gateway.device.protocol.common.constant.VendorDefaultPort;
 import com.gateway.device.protocol.model.DeviceAuthEntry;
@@ -38,11 +38,6 @@ public class ColorLightDeviceRegistrationProvider implements DeviceRegistrationP
     private final DeviceTransport transport;
     private final ColorLightCredentialStore credentialStore;
     private final ProtocolCodec<ColorLightHttpRequest, ColorLightHttpResponse> codec;
-    private volatile DeviceAuthStore authStore;
-    /**
-     * 注册过程中验证通过的凭据，由 postRegister 消费后清理
-     */
-    private volatile ColorLightAccount validatedAccount;
 
     public ColorLightDeviceRegistrationProvider(DeviceTransport transport,
                                                 ColorLightCredentialStore credentialStore,
@@ -50,22 +45,6 @@ public class ColorLightDeviceRegistrationProvider implements DeviceRegistrationP
         this.transport = transport;
         this.credentialStore = credentialStore;
         this.codec = codec;
-    }
-
-    public void setAuthStore(DeviceAuthStore authStore) {
-        this.authStore = authStore;
-    }
-
-    @Override
-    public void postRegister(DeviceContext device) {
-        ColorLightAccount account = this.validatedAccount;
-        if (authStore != null && account != null) {
-            authStore.update(device.getDeviceId(), DeviceAuthEntry.builder()
-                    .accountId(account.getAccountId())
-                    .password(account.getPassword())
-                    .build());
-            this.validatedAccount = null;
-        }
     }
 
     @Override
@@ -121,8 +100,12 @@ public class ColorLightDeviceRegistrationProvider implements DeviceRegistrationP
             return null;
         }
 
-        // 3. 暂存已验证凭据（待注册完成后由 postRegister 持久化）
-        this.validatedAccount = validAccount;
+        // 3. 暂存已验证凭据，由调用方在注册流水线末尾通过 persistAuth 统一持久化
+        device.getAttributes().put(DeviceRegistrationProvider.ATTR_AUTH_ENTRY,
+                DeviceAuthEntry.builder()
+                        .accountId(validAccount.getAccountId())
+                        .password(validAccount.getPassword())
+                        .build());
 
         root.put("sn", info.getSerialno());
         root.put("model", info.getModel());
@@ -183,22 +166,12 @@ public class ColorLightDeviceRegistrationProvider implements DeviceRegistrationP
         String host = device.getIp();
         int port = device.getPort() > 0 ? device.getPort() : VendorDefaultPort.COLOR_LIGHT_STANDARD.getPort();
         String target = host + ":" + port;
-        Duration timeout = Duration.ofSeconds(10);
+        Duration timeout = Duration.ofMillis(GatewayTimeoutConstants.DEVICE_OPERATION_DEFAULT_MS);
         try {
-            byte[] reqBytes = codec.encode(request);
-            if (log.isDebugEnabled()) {
-                log.debug("[{}] >>> transport request hex dump ({} bytes): {}",
-                        device.getVendor(), reqBytes.length,
-                        LittleEndianByteBufUtils.toHex(reqBytes));
-            }
-            byte[] respBytes = transport.sendAndReceive(device, reqBytes, timeout)
+            Object httpReq = codec.encodeRequest(request);
+            ParsedHttpResponse parsed = transport.sendHttp(device, httpReq, timeout)
                     .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
-            if (log.isDebugEnabled()) {
-                log.debug("[{}] >>> transport response hex dump ({} bytes): {}",
-                        device.getVendor(), respBytes.length,
-                        LittleEndianByteBufUtils.toHex(respBytes));
-            }
-            return codec.decode(respBytes);
+            return codec.decodeParsed(parsed);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.error("[{}] HTTP 请求中断", target);

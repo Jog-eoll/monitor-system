@@ -33,7 +33,7 @@ public class FileTransfer {
     private final TransportAdapter transport;
     private int gg = 1;
     private int uu = 1;
-    private int packSize = 1024;
+    private int packSize = ProtocolConst.DEFAULT_CHUNK_SIZE;
     private boolean verbose = true;
 
     public FileTransfer(DeviceTransport transport, DeviceContext device) {
@@ -232,7 +232,7 @@ public class FileTransfer {
     /**
      * 使用 0x0108 + CRC 校验和，按文件系统路径读取。
      *
-     * <p>先以 packSize=4 探测文件大小，再以 packSize=768 分块下载。</p>
+     * <p>先以 packSize=4 探测文件大小，再以 packSize=DEFAULT_CHUNK_SIZE 分块下载。</p>
      *
      * @param filePath 设备上的文件路径（如 "D:\\F\\HHXXp.mp4"）
      */
@@ -259,10 +259,10 @@ public class FileTransfer {
         if (totalSize <= 0) return new byte[0];
         if (verbose) log.debug("[FILE] 文件大小={}B", totalSize);
 
-        // Phase 2: 分块下载 (packSize=768, packIdx=1..N)
+        // Phase 2: 分块下载 (packSize=DEFAULT_CHUNK_SIZE, packIdx=1..N)
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        int chunkSize = Math.min(packSize, 768);
-        if (chunkSize < 4) chunkSize = 768;
+        int chunkSize = Math.min(packSize, ProtocolConst.DEFAULT_CHUNK_SIZE);
+        if (chunkSize < 4) chunkSize = ProtocolConst.DEFAULT_CHUNK_SIZE;
 
         for (int idx = 1; bos.size() < totalSize; idx++) {
             byte[] arg = new byte[argBytes];
@@ -524,8 +524,8 @@ public class FileTransfer {
 
         // Phase 2: 分块下载
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        int chunkSize = Math.min(packSize, 768);
-        if (chunkSize < 4) chunkSize = 768;
+        int chunkSize = Math.min(packSize, ProtocolConst.DEFAULT_CHUNK_SIZE);
+        if (chunkSize < 4) chunkSize = ProtocolConst.DEFAULT_CHUNK_SIZE;
 
         for (int idx = 1; bos.size() < totalSize; idx++) {
             byte[] arg = new byte[16];
@@ -605,7 +605,7 @@ public class FileTransfer {
      * 使用 0x0203 写入字库文件（默认 768B 分块）
      */
     public void writeFontFile(String fileName, byte[] fontData) throws IOException {
-        writeFontFile(fileName, fontData, 768);
+        writeFontFile(fileName, fontData, ProtocolConst.DEFAULT_CHUNK_SIZE);
     }
 
     // ════════════════════════════════════════════════════

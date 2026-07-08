@@ -2,16 +2,15 @@ package com.gateway.device.core.config;
 
 import com.gateway.device.core.config.colorlight.ColorLightProperties;
 import com.gateway.device.core.config.jetfileii.JetFileIIFileExtensionProperties;
+import com.gateway.device.core.config.jetfileii.JetFileIIProperties;
 import com.gateway.device.core.config.jetfileii.JetFileIITextProperties;
 import com.gateway.device.core.config.novastar.NovaViplexCoreProperties;
+import com.gateway.device.core.event.listener.DeviceSubmitEventListener;
 import com.gateway.device.core.executor.DeviceCommandExecutor;
 import com.gateway.device.core.executor.DeviceCommandFactory;
 import com.gateway.device.core.router.ProtocolRouter;
 import com.gateway.device.core.selector.DeviceSelectorResolver;
-import com.gateway.device.core.service.AutoDiscoveryService;
-import com.gateway.device.core.service.BatchCommandService;
-import com.gateway.device.core.service.DeviceManagementService;
-import com.gateway.device.core.service.IpRegistrationService;
+import com.gateway.device.core.service.*;
 import com.gateway.device.core.store.DeviceAuthManager;
 import com.gateway.device.core.store.DeviceRegistryManager;
 import com.gateway.device.core.task.InMemoryBatchTaskManager;
@@ -23,10 +22,12 @@ import com.gateway.device.protocol.adapter.jetfileii.standard.JetFileIIDiscovery
 import com.gateway.device.protocol.adapter.novastar.standard.NovaStandardDeviceInfoEnricher;
 import com.gateway.device.protocol.adapter.novastar.standard.NovaStandardDiscoveryProvider;
 import com.gateway.device.protocol.api.*;
+import com.gateway.device.protocol.base.jetfileii.standard.helper.JetFileIIMessaging;
 import com.gateway.device.transport.netty.ConnectionHealthChecker;
-import com.gateway.device.transport.netty.DeviceChannelPool;
 import com.gateway.device.transport.netty.NettyTransportConfig;
 import com.gateway.device.transport.netty.NettyTransportManager;
+import com.gateway.device.transport.netty.http.HttpChannelPool;
+import com.gateway.device.transport.netty.tcp.TcpChannelPool;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.ApplicationRunner;
@@ -51,7 +52,7 @@ import java.util.List;
 @Configuration
 @ComponentScan(basePackages = "com.gateway.device.core")
 @EnableScheduling
-@EnableConfigurationProperties({DiscoveryProperties.class, JetFileIITextProperties.class, FontsProperties.class, JetFileIIFileExtensionProperties.class, NovaViplexCoreProperties.class, ColorLightProperties.class})
+@EnableConfigurationProperties({DiscoveryProperties.class, JetFileIITextProperties.class, FontsProperties.class, JetFileIIFileExtensionProperties.class, JetFileIIProperties.class, NovaViplexCoreProperties.class, ColorLightProperties.class})
 @Slf4j
 public class DeviceCoreAutoConfiguration implements DisposableBean {
 
@@ -69,8 +70,14 @@ public class DeviceCoreAutoConfiguration implements DisposableBean {
 
     @Bean
     @ConditionalOnMissingBean
-    public DeviceChannelPool deviceChannelPool() {
-        return new DeviceChannelPool();
+    public TcpChannelPool tcpChannelPool() {
+        return new TcpChannelPool();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public HttpChannelPool httpChannelPool() {
+        return new HttpChannelPool();
     }
 
     @Bean
@@ -82,9 +89,10 @@ public class DeviceCoreAutoConfiguration implements DisposableBean {
     @Bean(destroyMethod = "close")
     @ConditionalOnMissingBean
     public NettyTransportManager nettyTransportManager(NettyTransportConfig config,
-                                                       DeviceChannelPool channelPool,
+                                                       TcpChannelPool tcpChannelPool,
+                                                       HttpChannelPool httpChannelPool,
                                                        ConnectionHealthChecker healthChecker) {
-        this.transportManager = new NettyTransportManager(config, channelPool, healthChecker);
+        this.transportManager = new NettyTransportManager(config, tcpChannelPool, httpChannelPool, healthChecker);
         return this.transportManager;
     }
 
@@ -178,24 +186,44 @@ public class DeviceCoreAutoConfiguration implements DisposableBean {
     @Bean
     @ConditionalOnMissingBean
     public BatchCommandService batchCommandService(
-            DeviceSelectorResolver selectorResolver,
             InMemoryBatchTaskManager taskManager,
-            DeviceCommandFactory commandFactory,
-            DeviceCommandExecutor commandExecutor,
             ApplicationEventPublisher eventPublisher) {
-        return new BatchCommandService(selectorResolver, taskManager, commandFactory, commandExecutor, eventPublisher);
+        return new BatchCommandService(taskManager, eventPublisher);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public IpRegistrationService ipRegistrationService(
-            AutoDiscoveryService autoDiscoveryService,
             InMemoryIpRegistrationTaskManager taskManager,
+            ApplicationEventPublisher eventPublisher) {
+        return new IpRegistrationService(taskManager, eventPublisher);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public DeviceLogoutService deviceLogoutService(
+            ApplicationEventPublisher eventPublisher) {
+        return new DeviceLogoutService(eventPublisher);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public DeviceSubmitEventListener deviceSubmitEventListener(
+            DeviceSelectorResolver selectorResolver,
+            InMemoryBatchTaskManager batchTaskManager,
+            DeviceCommandFactory commandFactory,
+            DeviceCommandExecutor commandExecutor,
+            ApplicationEventPublisher eventPublisher,
+            AutoDiscoveryService autoDiscoveryService,
+            DeviceRegistryManager deviceRegistry,
+            InMemoryIpRegistrationTaskManager ipTaskManager,
             ProtocolRouter router,
             List<DeviceRegistrationProvider> regProviders,
-            @Qualifier("deviceTaskPool") ThreadPoolTaskExecutor executor,
-            ApplicationEventPublisher eventPublisher) {
-        return new IpRegistrationService(autoDiscoveryService, taskManager, router, regProviders, executor, eventPublisher);
+            @Qualifier("deviceTaskPool") ThreadPoolTaskExecutor executor) {
+        return new DeviceSubmitEventListener(
+                selectorResolver, batchTaskManager, commandFactory, commandExecutor,
+                eventPublisher, autoDiscoveryService, deviceRegistry,
+                ipTaskManager, router, regProviders, executor);
     }
 
     @Bean
@@ -232,8 +260,8 @@ public class DeviceCoreAutoConfiguration implements DisposableBean {
 
     @Bean
     @ConditionalOnMissingBean
-    public JetFileIIDeviceInfoEnricher jetFileIIDeviceInfoEnricher() {
-        return new JetFileIIDeviceInfoEnricher();
+    public JetFileIIDeviceInfoEnricher jetFileIIDeviceInfoEnricher(NettyTransportManager transportManager) {
+        return new JetFileIIDeviceInfoEnricher(new JetFileIIMessaging(), transportManager);
     }
 
     @Bean
@@ -254,7 +282,7 @@ public class DeviceCoreAutoConfiguration implements DisposableBean {
     @ConditionalOnMissingBean
     public AutoDiscoveryService autoDiscoveryService(
             DiscoveryProperties properties,
-            DeviceManagementService deviceManagementService,
+            DeviceRegistryManager deviceRegistry,
             ProtocolRouter router,
             TaskScheduler taskScheduler,
             List<DeviceComplianceValidator> validators,
@@ -263,11 +291,13 @@ public class DeviceCoreAutoConfiguration implements DisposableBean {
             List<DeviceRegistrationProvider> regProviders,
             NettyTransportManager transportManager,
             ApplicationEventPublisher eventPublisher,
-            DeviceCommandExecutor commandExecutor) {
+            DeviceCommandExecutor commandExecutor,
+            DeviceAuthManager deviceAuthManager) {
         return new AutoDiscoveryService(properties,
-                deviceManagementService, router, taskScheduler, validators,
+                deviceRegistry, router, taskScheduler, validators,
                 discoveryProviders, enrichers, regProviders,
-                transportManager, eventPublisher, commandExecutor);
+                transportManager, eventPublisher, commandExecutor,
+                deviceAuthManager);
     }
 
     @Override

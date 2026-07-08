@@ -54,6 +54,21 @@ public class DeviceContext {
     private boolean online;
 
     /**
+     * 是否已登录认证。
+     *
+     * <p>所有协议均采用强制登录策略，登录成功后方可接收功能命令。
+     * 注册阶段由 {@code fetchRegistrationInfo} 内部完成认证，
+     * 注册成功即视为已登录：
+     * <ul><li>JetFileII —— fetchRegistrationInfo 内发送 LOGIN_LOGIN + READ_SYSINFO</li>
+     * <li>ColorLight —— fetchRegistrationInfo 凭据轮询验证，成功即持久化</li>
+     * <li>NovaStar —— SDK 发现阶段已完成登录</li></ul>
+     *
+     * <p>默认 {@code false}：设备必须先通过注册流程方可接收功能命令。</p>
+     */
+    @Builder.Default
+    private boolean loggedIn = false;
+
+    /**
      * 屏幕宽度（像素）
      */
     private Integer width;

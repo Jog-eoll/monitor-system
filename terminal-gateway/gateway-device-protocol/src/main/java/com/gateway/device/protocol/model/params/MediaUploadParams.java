@@ -1,6 +1,7 @@
 package com.gateway.device.protocol.model.params;
 
 import com.gateway.device.protocol.base.jetfileii.standard.command.Partition;
+import com.gateway.device.protocol.base.jetfileii.standard.command.ProtocolConst;
 import com.gateway.device.protocol.model.params.depend.DimensionedParams;
 import lombok.Builder;
 import lombok.Data;
@@ -39,7 +40,7 @@ public class MediaUploadParams implements DimensionedParams {
      * 传输块大小（JetFileII 用）
      */
     @Builder.Default
-    private int chunkSize = 1024;
+    private int chunkSize = ProtocolConst.DEFAULT_CHUNK_SIZE;
 
     /**
      * 远端完整路径（JetFileII 用，与 partition + fileName 二选一）

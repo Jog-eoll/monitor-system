@@ -110,6 +110,14 @@ public class ControlCommandOrchestrator {
                     commandTaskId, SecureStatusCode.DECRYPT_FAILED, "密文解密失败: " + e.getMessage()), requestId);
         }
 
+        if (decrypted == null) {
+            log.warn("[控制编排器] 解密结果为空: commandTaskId={}, cryptoStatus={}",
+                    commandTaskId, cryptoService.getSvacModuleStatus());
+            return attachRequestId(SecureControlResponse.rejected(
+                    commandTaskId, SecureStatusCode.DECRYPT_FAILED,
+                    "密文解密失败: " + cryptoService.getSvacModuleStatus()), requestId);
+        }
+
         String json = new String(decrypted, StandardCharsets.UTF_8);
         log.info("[控制编排器] 解密成功: commandTaskId={}, requestId={}, decryptedLength={}",
                 commandTaskId, requestId, json.length());
@@ -425,7 +433,8 @@ public class ControlCommandOrchestrator {
             return DeviceVendor.JET_FILE_II_STANDARD;
         }
         if ("COLORLIGHT".equals(normalized)
-                || "COLOR_LIGHT".equals(normalized)) {
+                || "COLOR_LIGHT".equals(normalized)
+                || "COLORIGHT".equals(normalized)) {
             return DeviceVendor.COLOR_LIGHT_STANDARD;
         }
         try {

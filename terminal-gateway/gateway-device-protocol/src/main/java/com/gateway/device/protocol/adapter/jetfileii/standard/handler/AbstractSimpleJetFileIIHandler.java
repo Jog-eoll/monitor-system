@@ -3,6 +3,7 @@ package com.gateway.device.protocol.adapter.jetfileii.standard.handler;
 import com.gateway.device.protocol.api.DeviceTransport;
 import com.gateway.device.protocol.base.jetfileii.standard.helper.JetFileIIMessaging;
 import com.gateway.device.protocol.base.jetfileii.standard.model.JetFileIIRequest;
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.model.CommandResult;
 import com.gateway.device.protocol.model.DeviceContext;
 import com.gateway.device.protocol.model.params.depend.CommandParams;
@@ -26,7 +27,7 @@ public abstract class AbstractSimpleJetFileIIHandler<P extends CommandParams>
     @Override
     public CommandResult execute(DeviceContext device, P params) {
         JetFileIIRequest req = buildRequest(device, params);
-        Duration timeout = req.isNeedReply() ? getTimeout() : Duration.ofSeconds(2);
+        Duration timeout = req.isNeedReply() ? getTimeout() : Duration.ofMillis(GatewayTimeoutConstants.DEVICE_OPERATION_NO_REPLY_MS);
         return messaging().executeSimple(transport(), device, req, timeout);
     }
 

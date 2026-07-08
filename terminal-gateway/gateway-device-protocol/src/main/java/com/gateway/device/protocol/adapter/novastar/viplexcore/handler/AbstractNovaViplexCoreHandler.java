@@ -4,6 +4,7 @@ import com.gateway.device.protocol.api.CapabilityHandler;
 import com.gateway.device.protocol.base.novastar.viplexcore.ViplexCoreChannel;
 import com.gateway.device.protocol.base.novastar.viplexcore.builder.ViplexProgramPipeline;
 import com.gateway.device.protocol.base.novastar.viplexcore.text.NovaViplexCoreTextStyle;
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.model.CommandResult;
 import com.gateway.device.protocol.model.DeviceContext;
 import com.gateway.device.protocol.model.params.depend.CommandParams;
@@ -60,7 +61,7 @@ public abstract class AbstractNovaViplexCoreHandler<P extends CommandParams> imp
      * 默认超时 10 秒
      */
     protected Duration getTimeout() {
-        return Duration.ofSeconds(10);
+        return Duration.ofMillis(GatewayTimeoutConstants.DEVICE_OPERATION_DEFAULT_MS);
     }
 
     @Override

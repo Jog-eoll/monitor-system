@@ -120,6 +120,9 @@ public class JetFileIIAdapter implements VendorProtocolAdapter {
         register(new JetFileIIFontSyncHandler(messaging, transport, fontLocalPath));
         // IP 配置
         register(new JetFileIIIpConfigHandler(messaging, transport));
+        // 点阵像素宽高配置
+        register(new JetFileIIScreenAttributeHandler(messaging, transport));
+
     }
 
     // ════════════════════════════════════════════════════

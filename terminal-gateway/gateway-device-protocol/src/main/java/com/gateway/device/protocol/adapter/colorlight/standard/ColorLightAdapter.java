@@ -2,6 +2,8 @@ package com.gateway.device.protocol.adapter.colorlight.standard;
 
 import com.gateway.device.protocol.adapter.colorlight.standard.handler.AbstractColorLightHttpHandler;
 import com.gateway.device.protocol.adapter.colorlight.standard.handler.info.ColorLightDeviceInfoGetHandler;
+import com.gateway.device.protocol.adapter.colorlight.standard.handler.info.ColorLightProgramThumbnailGetHandler;
+import com.gateway.device.protocol.adapter.colorlight.standard.handler.info.ColorLightScreenshotHandler;
 import com.gateway.device.protocol.adapter.colorlight.standard.handler.media.ColorLightMediaDeleteHandler;
 import com.gateway.device.protocol.adapter.colorlight.standard.handler.media.ColorLightMediaMultiUploadHandler;
 import com.gateway.device.protocol.adapter.colorlight.standard.handler.media.ColorLightMediaUploadHandler;
@@ -30,8 +32,7 @@ import java.util.function.BiFunction;
  * <p>每个 {@link DeviceCapability} 对应一个 {@link CapabilityHandler} 实现，
  * 执行时通过闭包分发，消除 switch/case。
  * Handler 映射表由 Adapter 独立维护，不与其它 Adapter 共享。</p>
- *
- * <p>传输层使用 Netty HttpClientCodec + HttpObjectAggregator（TransportType.HTTP），
+ * <p>
  * 默认端口 8989。Basic Auth 凭据通过 {@link ColorLightCredentialStore} 按设备持久化复用。</p>
  */
 public class ColorLightAdapter implements VendorProtocolAdapter {
@@ -54,6 +55,10 @@ public class ColorLightAdapter implements VendorProtocolAdapter {
         // ── INFO ──
         // 设备信息查询
         register(new ColorLightDeviceInfoGetHandler(transport, credentialStore, codec));
+        // 设备截图
+        register(new ColorLightScreenshotHandler(transport, credentialStore, codec));
+        // 节目缩略图
+        register(new ColorLightProgramThumbnailGetHandler(transport, credentialStore, codec));
 
         // ── MEDIA ──
         // ── 文字 ──
@@ -63,6 +68,7 @@ public class ColorLightAdapter implements VendorProtocolAdapter {
         // ── 视频 ──
         register(new ColorLightMediaUploadHandler(transport, credentialStore, codec, CommonDeviceCapability.VIDEO_UPLOAD));
         // ── 混合多媒体（图片+视频） ──
+        // ── 多页面节目（每个文件一个独立节目页） ──
         register(new ColorLightMediaMultiUploadHandler(transport, credentialStore, codec));
         // ── 通用媒体删除 ──
         register(new ColorLightMediaDeleteHandler(transport, credentialStore, codec, CommonDeviceCapability.MEDIA_DELETE));
@@ -81,8 +87,14 @@ public class ColorLightAdapter implements VendorProtocolAdapter {
         register(new ColorLightVolumeSetHandler(transport, credentialStore, codec));
 
         // ── OPERATE ──
+        // 亮度查询
+        register(new ColorLightBrightnessGetHandler(transport, credentialStore, codec));
         // 亮度调节
         register(new ColorLightBrightnessHandler(transport, credentialStore, codec));
+        // 输出分辨率配置
+        register(new ColorLightScreenAttributeSetHandler(transport, credentialStore, codec));
+        // 时间查询
+        register(new ColorLightTimeGetHandler(transport, credentialStore, codec));
         // 时间同步
         register(new ColorLightTimeSyncHandler(transport, credentialStore, codec));
         // 黑屏开关
@@ -93,6 +105,8 @@ public class ColorLightAdapter implements VendorProtocolAdapter {
         register(new ColorLightSleepHandler(transport, credentialStore, codec));
         // 唤醒
         register(new ColorLightWakeupHandler(transport, credentialStore, codec));
+        // 网络查询
+        register(new ColorLightNetworkGetHandler(transport, credentialStore, codec));
         // IP 配置
         register(new ColorLightIpConfigHandler(transport, credentialStore, codec));
         // AP 热点开关
@@ -100,6 +114,8 @@ public class ColorLightAdapter implements VendorProtocolAdapter {
         // NTP 服务器配置
         register(new ColorLightNtpConfigHandler(transport, credentialStore, codec));
         register(new ColorLightNtpGetHandler(transport, credentialStore, codec));
+        // 节目分辨率自适应开关
+        register(new ColorLightProgramAutoScaleHandler(transport, credentialStore, codec));
 
         // 注入认证存储（用于已持久化凭据查找）
         if (authStore != null) {

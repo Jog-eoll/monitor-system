@@ -54,7 +54,7 @@ public class NovaViplexCoreBrightnessHandler extends AbstractNovaViplexCoreHandl
             return CommandResult.failure("INVALID_PARAM", "设备 SN 缺失");
         }
 
-        String json = ViplexCoreJsonBuilder.buildBrightnessGetJson(sn);
+        String json = ViplexCoreJsonBuilder.buildSnJson(sn);
 
         ViplexResponse resp = channel()
                 .execute(SdkFunction.NV_GET_SCREEN_BRIGHTNESS_ASYNC, json, getTimeout());

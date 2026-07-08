@@ -10,6 +10,11 @@ import com.gateway.device.protocol.model.params.*;
  */
 public final class CommonDeviceCapability {
     /**
+     * Search devices.
+     */
+    public static final DeviceCapability<EmptyParams> DEVICE_SEARCH
+            = DeviceCapability.of("DEVICE_SEARCH");
+    /**
      * 获取设备信息
      */
     public static final DeviceCapability<EmptyParams> DEVICE_INFO_GET
@@ -103,19 +108,29 @@ public final class CommonDeviceCapability {
     /**
      * 时间同步
      */
+    public static final DeviceCapability<EmptyParams> TIME_GET
+            = DeviceCapability.of("TIME_GET");
+    /**
+     * 时间同步
+     */
     public static final DeviceCapability<TimeSyncParams> TIME_SYNC
             = DeviceCapability.of("TIME_SYNC", TimeSyncParams.class);
-    /**
-     * NTP 服务器配置
-     */
-    public static final DeviceCapability<NtpSetParams> NTP_SET
-            = DeviceCapability.of("NTP_SET", NtpSetParams.class);
     /**
      * 查询 NTP 配置
      */
     public static final DeviceCapability<EmptyParams> NTP_GET
             = DeviceCapability.of("NTP_GET");
+    /**
+     * NTP 服务器配置
+     */
+    public static final DeviceCapability<NtpSetParams> NTP_SET
+            = DeviceCapability.of("NTP_SET", NtpSetParams.class);
     // ── 网络配置 ──
+    /**
+     * 设备网络查询
+     */
+    public static final DeviceCapability<EmptyParams> DEVICE_NETWORK_IP_GET
+            = DeviceCapability.of("DEVICE_NETWORK_IP_GET");
     /**
      * 修改设备网络配置（IP/掩码/网关/DNS）
      */
@@ -132,6 +147,11 @@ public final class CommonDeviceCapability {
      */
     public static final DeviceCapability<ScreenAttributeParams> SCREEN_ATTRIBUTE_SET
             = DeviceCapability.of("SCREEN_ATTRIBUTE_SET", ScreenAttributeParams.class);
+    /**
+     * 亮度查询
+     */
+    public static final DeviceCapability<EmptyParams> BRIGHTNESS_GET
+            = DeviceCapability.of("BRIGHTNESS_GET");
     /**
      * 亮度调节
      */

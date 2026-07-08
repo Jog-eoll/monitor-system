@@ -39,11 +39,6 @@ public class JetFileIIDiscoveredDevice implements DiscoveredDevice {
     private int cpuVersion;
 
     /**
-     * FPGA 固件版本
-     */
-    private int fpgaVersion;
-
-    /**
      * 回送来源端口
      */
     private int sourcePort;
@@ -65,20 +60,8 @@ public class JetFileIIDiscoveredDevice implements DiscoveredDevice {
         attrs.put("gg", gg);
         attrs.put("uu", uu);
         attrs.put("cpuVersion", cpuVersion);
-        attrs.put("fpgaVersion", fpgaVersion);
         attrs.put("serialNo", serialNo);
         attrs.put("macAddr", macAddr);
         return attrs;
-    }
-
-    public String getAddress() {
-        return String.format("GG=%d UU=%d", gg, uu);
-    }
-
-    @Override
-    public String toString() {
-        String id = serialNo != null ? serialNo : ip;
-        return String.format("%-16s SN=%s GG=%-3d UU=%-3d CPU=v%d  FPGA=v%d",
-                ip, id, gg, uu, cpuVersion, fpgaVersion);
     }
 }

@@ -58,9 +58,30 @@ public interface VendorProtocolAdapter {
     }
 
     /**
+     * 检查设备是否就绪（在线且已登录），下发命令的前置条件。
+     * 协议可覆盖以实现自定义就绪判断（如 NovaStar SDK 额外检查 SDK 会话状态）。
+     */
+    default boolean isDeviceReady(DeviceContext device) {
+        return device.isOnline() && device.isLoggedIn();
+    }
+
+    /**
+     * 获取设备未就绪时的标准错误码，按优先级判定。
+     */
+    default String getNotReadyErrorCode(DeviceContext device) {
+        if (!device.isOnline()) return StandardErrorCode.DEVICE_OFFLINE;
+        if (!device.isLoggedIn()) return StandardErrorCode.DEVICE_NOT_LOGGED_IN;
+        return StandardErrorCode.SYSTEM_ERROR;
+    }
+
+    /**
      * 执行单台设备命令
      */
     default CommandResult execute(DeviceContext device, DeviceCommand command) {
+        if (!isDeviceReady(device)) {
+            return CommandResult.failure(getNotReadyErrorCode(device),
+                    "设备未就绪: " + device.getDeviceId());
+        }
         DeviceCapability<?> cap = command.getCapability();
         BiFunction<DeviceContext, CommandParams, CommandResult> dispatcher = getDispatchers().get(cap);
         if (dispatcher == null) {

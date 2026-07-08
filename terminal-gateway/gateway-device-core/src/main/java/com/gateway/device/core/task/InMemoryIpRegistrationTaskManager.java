@@ -7,7 +7,6 @@ import com.gateway.device.protocol.model.IpRegistrationTask;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -22,12 +21,9 @@ public class InMemoryIpRegistrationTaskManager {
     private final ConcurrentMap<String, CompletableFuture<IpRegistrationTask>> futures = new ConcurrentHashMap<>();
 
     /**
-     * 创建 IP 注册任务
+     * 创建 IP 注册任务（显式 taskId）。
      */
-    public IpRegistrationTask createTask(IpRegistrationRequest request, int ipCount) {
-        String taskId = request.getRequestId() != null
-                ? request.getRequestId()
-                : UUID.randomUUID().toString();
+    public IpRegistrationTask createTask(IpRegistrationRequest request, int ipCount, String taskId) {
         IpRegistrationTask task = new IpRegistrationTask(taskId, request.getVendor(), ipCount);
         tasks.put(taskId, task);
         return task;

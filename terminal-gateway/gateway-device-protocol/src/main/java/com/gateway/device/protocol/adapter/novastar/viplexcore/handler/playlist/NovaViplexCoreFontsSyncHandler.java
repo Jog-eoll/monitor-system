@@ -9,6 +9,7 @@ import com.gateway.device.protocol.base.novastar.viplexcore.builder.ViplexProgra
 import com.gateway.device.protocol.base.novastar.viplexcore.font.NovaStarFontInfo;
 import com.gateway.device.protocol.base.novastar.viplexcore.helper.ViplexCoreJsonBuilder;
 import com.gateway.device.protocol.base.novastar.viplexcore.text.NovaViplexCoreTextStyle;
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.common.capability.CommonDeviceCapability;
 import com.gateway.device.protocol.common.capability.depend.DeviceCapability;
 import com.gateway.device.protocol.common.constant.StandardErrorCode;
@@ -45,7 +46,6 @@ public class NovaViplexCoreFontsSyncHandler extends AbstractNovaViplexCoreHandle
     /**
      * 字体 FTP 上传超时，TTF 文件需充足传输时间
      */
-    private static final Duration FONT_SYNC_TIMEOUT = Duration.ofSeconds(120);
     private final String fontLocalPath;
 
     public NovaViplexCoreFontsSyncHandler(
@@ -59,7 +59,7 @@ public class NovaViplexCoreFontsSyncHandler extends AbstractNovaViplexCoreHandle
 
     @Override
     protected Duration getTimeout() {
-        return FONT_SYNC_TIMEOUT;
+        return Duration.ofMillis(GatewayTimeoutConstants.DEVICE_FONT_SYNC_MS);
     }
 
     @Override

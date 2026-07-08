@@ -4,7 +4,7 @@ import com.gateway.device.protocol.api.DiscoveredDevice;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -32,6 +32,6 @@ public class ExplicitIpDiscoveredDevice implements DiscoveredDevice {
      */
     @Override
     public Map<String, Object> getAttributes() {
-        return Collections.emptyMap();
+        return new HashMap<>();
     }
 }

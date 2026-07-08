@@ -7,6 +7,7 @@ import com.gateway.device.protocol.base.novastar.viplexcore.SdkFunction;
 import com.gateway.device.protocol.base.novastar.viplexcore.ViplexCoreChannel;
 import com.gateway.device.protocol.base.novastar.viplexcore.ViplexResponse;
 import com.gateway.device.protocol.base.novastar.viplexcore.text.NovaViplexCoreTextStyle;
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.common.JsonCustomMapper;
 import com.gateway.device.protocol.common.constant.MediaType;
 import com.gateway.device.protocol.common.file.Thumbs;
@@ -152,7 +153,7 @@ public class ViplexProgramPipeline {
         }
         String jsonStr = json.toString();
         log.debug("[SetMediaMultiPage] programId={} pageCount={} json={}", programId, pages.size(), jsonStr);
-        Duration batchTimeout = Duration.ofSeconds(30);
+        Duration batchTimeout = Duration.ofMillis(GatewayTimeoutConstants.DEVICE_BATCH_PROGRAM_MS);
         ViplexResponse resp = channel.execute(SdkFunction.NV_SET_PAGE_PROGRAMS_ASYNC, jsonStr, batchTimeout);
         log.debug("[SetMediaMultiPage] code={} data={}", resp.getCode(), resp.getData());
         return resp;

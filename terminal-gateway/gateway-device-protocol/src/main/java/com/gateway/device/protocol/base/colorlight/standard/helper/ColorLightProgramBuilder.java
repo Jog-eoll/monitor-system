@@ -8,17 +8,17 @@ import com.gateway.device.protocol.base.colorlight.standard.model.vsn.base.Displ
 import com.gateway.device.protocol.base.colorlight.standard.model.vsn.base.FileSource;
 import com.gateway.device.protocol.base.colorlight.standard.model.vsn.base.Information;
 import com.gateway.device.protocol.base.colorlight.standard.model.vsn.enums.ItemType;
+import com.gateway.device.protocol.base.colorlight.standard.model.vsn.enums.LoopType;
 import com.gateway.device.protocol.base.colorlight.standard.model.vsn.enums.PathType;
 import com.gateway.device.protocol.base.colorlight.standard.model.vsn.enums.ReserveMode;
 import com.gateway.device.protocol.base.colorlight.standard.model.vsn.text.LogFont;
+import com.gateway.device.protocol.common.constant.MediaType;
+import com.gateway.device.protocol.common.file.MediaFileEntry;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.AbstractMap;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * ColorLight VSN 节目便捷构建器。
@@ -280,6 +280,71 @@ public final class ColorLightProgramBuilder {
                         .program(VsnProgram.builder()
                                 .information(Information.builder().width(width).height(height).build())
                                 .pages(Collections.singletonList(page))
+                                .build())
+                        .build())
+                .build();
+
+        return ColorLightVsnParser.toJson(programs);
+    }
+
+    /**
+     * 构建多页面节目 VSN JSON —— 每个媒体文件对应一个独立的节目页。
+     *
+     * <p>每个 {@link MediaFileEntry} 映射为一个 {@link VsnPage}，
+     * 页面内包含一个全屏区域（{@link VsnRegion}），区域内包含一个素材项（{@link VsnItem}）。
+     * 所有页面统一属于一个 {@link VsnProgram}。</p>
+     *
+     * @param entries     媒体文件条目列表（已按 order 升序排列）
+     * @param programName 节目名（不含 .vsn 扩展名），用于构建 FileSource 相对路径
+     * @param width       节目宽度（像素）
+     * @param height      节目高度（像素）
+     * @return VSN JSON 字符串
+     */
+    public static String buildMultiPage(List<MediaFileEntry> entries, String programName, int width, int height) {
+        List<VsnPage> pages = new ArrayList<>(entries.size());
+        for (MediaFileEntry entry : entries) {
+            ItemType itemType = entry.getMediaType() == MediaType.VIDEO
+                    ? ItemType.VIDEO
+                    : ItemType.PICTURE;
+
+            long duration = entry.getDuration() != null
+                    ? entry.getDuration().longValue()
+                    : 10000L;
+
+            VsnItem item = VsnItem.builder()
+                    .type(itemType)
+                    .volume(1.0f)
+                    .alpha(itemType == ItemType.PICTURE ? 1.0f : null)
+                    .reserveAS(ReserveMode.FIT_XY)
+                    .duration(duration)
+                    .fileSource(FileSource.builder()
+                            .isRelative(PathType.RELATIVE)
+                            .filePath(buildFileSourcePath(programName, entry.getFileName()))
+                            .build())
+                    .build();
+
+            VsnRegion region = VsnRegion.builder()
+                    .layer(1)
+                    .rect(DisplayRect.builder()
+                            .x(0).y(0).width(width).height(height)
+                            .build())
+                    .items(Collections.singletonList(item))
+                    .build();
+
+            VsnPage page = VsnPage.builder()
+                    .loopType(LoopType.AUTO)
+                    .appointDuration(duration)
+                    .regions(Collections.singletonList(region))
+                    .build();
+
+            pages.add(page);
+        }
+
+        VsnPrograms programs = VsnPrograms.builder()
+                .programs(VsnPrograms.Programs.builder()
+                        .program(VsnProgram.builder()
+                                .information(Information.builder().width(width).height(height).build())
+                                .pages(pages)
                                 .build())
                         .build())
                 .build();

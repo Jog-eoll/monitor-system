@@ -102,8 +102,8 @@ public class JetFileIIDeviceInfoGetHandler extends AbstractSimpleJetFileIIHandle
         deviceInfo.put("version", version);
 
         Map<String, Object> display = new LinkedHashMap<>();
-        display.put("width", info.screenWidth);
-        display.put("height", info.screenHeight);
+        display.put("width", info.displayWidth);
+        display.put("height", info.displayHeight);
         display.put("monitorStatus", info.monitorStatus);
         display.put("brightPercent1", info.brightPercent1);
         display.put("brightAdValue1", info.brightAdValue1);

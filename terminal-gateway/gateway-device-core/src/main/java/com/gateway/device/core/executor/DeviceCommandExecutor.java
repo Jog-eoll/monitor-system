@@ -1,6 +1,6 @@
 package com.gateway.device.core.executor;
 
-import com.gateway.device.core.event.BatchTaskCompletedEvent;
+import com.gateway.device.core.event.logger.BatchTaskCompletedEvent;
 import com.gateway.device.core.router.ProtocolRouter;
 import com.gateway.device.core.task.InMemoryBatchTaskManager;
 import com.gateway.device.protocol.api.VendorProtocolAdapter;

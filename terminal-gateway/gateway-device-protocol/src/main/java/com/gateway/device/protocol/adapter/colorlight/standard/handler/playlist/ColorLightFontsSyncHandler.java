@@ -9,6 +9,7 @@ import com.gateway.device.protocol.base.colorlight.standard.codec.ColorLightHttp
 import com.gateway.device.protocol.base.colorlight.standard.codec.ColorLightHttpResponse;
 import com.gateway.device.protocol.base.colorlight.standard.helper.ColorLightProgramBuilder;
 import com.gateway.device.protocol.base.colorlight.standard.model.MultipartPart;
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.common.capability.CommonDeviceCapability;
 import com.gateway.device.protocol.common.capability.depend.DeviceCapability;
 import com.gateway.device.protocol.common.constant.StandardErrorCode;
@@ -43,7 +44,6 @@ public class ColorLightFontsSyncHandler extends AbstractColorLightHttpHandler<Fo
     /**
      * 字体上传超时，TTF 文件需充足传输时间
      */
-    private static final Duration FONT_SYNC_TIMEOUT = Duration.ofSeconds(120);
     private final String fontLocalPath;
 
     public ColorLightFontsSyncHandler(DeviceTransport transport,
@@ -56,7 +56,7 @@ public class ColorLightFontsSyncHandler extends AbstractColorLightHttpHandler<Fo
 
     @Override
     protected Duration getTimeout() {
-        return FONT_SYNC_TIMEOUT;
+        return Duration.ofMillis(GatewayTimeoutConstants.DEVICE_FONT_SYNC_MS);
     }
 
     @Override

@@ -8,6 +8,7 @@ import com.gateway.device.protocol.base.jetfileii.standard.helper.JetFileIIMessa
 import com.gateway.device.protocol.base.jetfileii.standard.model.JetFileIIRequest;
 import com.gateway.device.protocol.base.jetfileii.standard.sys.SysFileName;
 import com.gateway.device.protocol.base.jetfileii.standard.transfer.FileTransfer;
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.common.capability.CommonDeviceCapability;
 import com.gateway.device.protocol.common.capability.depend.DeviceCapability;
 import com.gateway.device.protocol.common.constant.StandardErrorCode;
@@ -53,6 +54,6 @@ public class JetFileIIPlaylistGetHandler extends AbstractJetFileIIHandler<Playli
         }
         // 简单回退：查询当前播放文件
         JetFileIIRequest req = JetFileIIRequest.of(MainCmd.DISPLAY, SubCmd.DISP_READ_CUR_FILE);
-        return messaging().executeSimple(transport(), device, req, Duration.ofSeconds(5));
+        return messaging().executeSimple(transport(), device, req, Duration.ofMillis(GatewayTimeoutConstants.DEVICE_OPERATION_QUICK_MS));
     }
 }

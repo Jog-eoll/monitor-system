@@ -100,6 +100,14 @@ public class PublishPackageOrchestrator {
                     deliveryTaskId, SecureStatusCode.DECRYPT_FAILED, "密文解密失败: " + e.getMessage()), requestId);
         }
 
+        if (decrypted == null) {
+            log.warn("[发布编排] 解密结果为空: deliveryTaskId={}, cryptoStatus={}",
+                    deliveryTaskId, cryptoService.getSvacModuleStatus());
+            return attachRequestId(SecureCommandResponse.rejected(
+                    deliveryTaskId, SecureStatusCode.DECRYPT_FAILED,
+                    "密文解密失败: " + cryptoService.getSvacModuleStatus()), requestId);
+        }
+
         String json = new String(decrypted, StandardCharsets.UTF_8);
         log.info("[发布编排] 解密成功: orchestrationTaskId={}, deliveryTaskId={}, requestId={}, decryptedLength={}",
                 orchestrationTaskId, deliveryTaskId, requestId, json.length());
@@ -579,7 +587,8 @@ public class PublishPackageOrchestrator {
                 || "JET_FILE_II".equals(normalized)) {
             return DeviceVendor.JET_FILE_II_STANDARD;
         }
-        if ("COLORLIGHT".equals(normalized) || "COLOR_LIGHT".equals(normalized)) {
+        if ("COLORLIGHT".equals(normalized) || "COLOR_LIGHT".equals(normalized)
+                || "COLORIGHT".equals(normalized)) {
             return DeviceVendor.COLOR_LIGHT_STANDARD;
         }
         try {

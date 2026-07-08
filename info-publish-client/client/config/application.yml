@@ -49,6 +49,19 @@ provider:
 control-command:
   gateway-url: ${CONTROL_COMMAND_GATEWAY_URL:http://192.168.1.25:8092}
 
+http-client:
+  connect-timeout-ms: ${HTTP_CLIENT_CONNECT_TIMEOUT_MS:10000}
+  read-timeout-ms: ${HTTP_CLIENT_READ_TIMEOUT_MS:120000}
+
+content-publish:
+  gateway-url: ${CONTENT_PUBLISH_GATEWAY_URL:${CONTROL_COMMAND_GATEWAY_URL:http://192.168.1.25:8092}}
+  download-timeout-ms: ${CONTENT_PUBLISH_DOWNLOAD_TIMEOUT_MS:120000}
+  max-file-size-mb: ${CONTENT_PUBLISH_MAX_FILE_SIZE_MB:50}
+
+secure-publish:
+  permit:
+    hmac-secret: ${SIGMA_PERMIT_HMAC_SECRET:ChangeMe_Sigma_Permit_Secret_32Bytes!}
+
 logging:
   level:
     com.infopublish: INFO

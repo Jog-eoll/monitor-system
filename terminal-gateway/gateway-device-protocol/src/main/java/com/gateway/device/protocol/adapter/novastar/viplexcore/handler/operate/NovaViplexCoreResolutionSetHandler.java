@@ -17,8 +17,6 @@ import com.gateway.device.protocol.model.params.ResolutionSetParams;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
-import java.time.Duration;
-
 /**
  * 显示屏分辨率设置处理器 —— 设置终端显示屏分辨率（宽高）。
  *
@@ -40,14 +38,6 @@ public class NovaViplexCoreResolutionSetHandler extends AbstractNovaViplexCoreHa
     @Override
     public DeviceCapability<ResolutionSetParams> capability() {
         return NovaViplexCoreCapability.DISPLAY_RESOLUTION_SET;
-    }
-
-    /**
-     * 分辨率切换耗时较长，使用 30 秒超时
-     */
-    @Override
-    protected Duration getTimeout() {
-        return Duration.ofSeconds(30);
     }
 
     @Override

@@ -54,6 +54,10 @@ public class ColorLightTextUploadHandler extends AbstractColorLightHttpHandler<T
         if (resp == null || resp.getStatusCode() != HttpURLConnection.HTTP_OK) {
             return failureResult("CL_TEXT_FAIL", "Failed to upload text program");
         }
+
+        // ── 设置默认缩略图（非致命） ──
+        postSetThumbnail(device, DEFAULT_TEXT_NAME);
+
         return successResult();
     }
 }

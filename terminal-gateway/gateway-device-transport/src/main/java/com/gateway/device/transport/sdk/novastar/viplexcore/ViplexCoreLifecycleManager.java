@@ -6,9 +6,11 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.gateway.device.protocol.api.DeviceAuthStore;
 import com.gateway.device.protocol.base.novastar.viplexcore.*;
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.common.JsonCustomMapper;
 import com.gateway.device.protocol.model.DeviceAuthEntry;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
@@ -33,7 +35,7 @@ import java.util.function.Predicate;
 public class ViplexCoreLifecycleManager implements ViplexCoreChannel {
 
     private static final int MAX_LOGIN_FAILURES = 10;
-    private static final Duration LOGIN_COOLDOWN = Duration.ofSeconds(60);
+    private static final Duration LOGIN_COOLDOWN = Duration.ofSeconds(GatewayTimeoutConstants.DEVICE_LOGIN_COOLDOWN_SEC);
 
     /**
      * 获取底层 JNA 库实例，供 Handler 调用具体 SDK 函数
@@ -64,7 +66,10 @@ public class ViplexCoreLifecycleManager implements ViplexCoreChannel {
     private final Semaphore inFlightGuard = new Semaphore(1, true);
     /**
      * 公共认证存储（跨厂商），用于持久化已认证凭据，登出时清理。
+     * -- SETTER --
+     * 设置公共认证存储（由 Spring 配置注入）。
      */
+    @Setter
     private volatile DeviceAuthStore authStore;
     /**
      * SDK 是否已成功初始化
@@ -109,13 +114,6 @@ public class ViplexCoreLifecycleManager implements ViplexCoreChannel {
 
     private static boolean sessionKeyMatchesSn(String key, String sn) {
         return key.startsWith(sn + "#");
-    }
-
-    /**
-     * 设置公共认证存储（由 Spring 配置注入）。
-     */
-    public void setAuthStore(DeviceAuthStore authStore) {
-        this.authStore = authStore;
     }
 
     /**
@@ -167,13 +165,14 @@ public class ViplexCoreLifecycleManager implements ViplexCoreChannel {
     }
 
     /**
-     * 登出指定设备。
+     * 登出指定设备（调用 nvLogoutAsync，清理本地会话）。
      *
      * @param sn      设备序列号
      * @param timeout 登出超时
      * @return ViplexResponse，success 表示登出成功
      */
-    public ViplexResponse logoutDevice(String sn, Duration timeout) {
+    @Override
+    public ViplexResponse logout(String sn, Duration timeout) {
         if (!initialized) {
             return ViplexResponse.failure(-1, "SDK 未初始化");
         }
@@ -185,7 +184,6 @@ public class ViplexCoreLifecycleManager implements ViplexCoreChannel {
         activeSessions.keySet().removeIf(k -> sessionKeyMatchesSn(k, sn));
         loginFailures.remove(sn);
         knownAccounts.remove(sn);
-        if (authStore != null) authStore.remove(sn);
         if (resp.isSuccess()) {
             log.debug("ViplexCore 登出成功 SN={}", sn);
         } else {
@@ -457,7 +455,7 @@ public class ViplexCoreLifecycleManager implements ViplexCoreChannel {
             }
         });
         try {
-            boolean completed = latch.await(5, TimeUnit.SECONDS);
+            boolean completed = latch.await(GatewayTimeoutConstants.DEVICE_LOGOUT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             if (!completed) {
                 log.debug("logoutDeviceInternal 等待超时 SN={}", sn);
             }
@@ -467,7 +465,6 @@ public class ViplexCoreLifecycleManager implements ViplexCoreChannel {
         activeSessions.keySet().removeIf(k -> sessionKeyMatchesSn(k, sn));
         loginFailures.remove(sn);
         knownAccounts.remove(sn);
-        if (authStore != null) authStore.remove(sn);
     }
 
     /**

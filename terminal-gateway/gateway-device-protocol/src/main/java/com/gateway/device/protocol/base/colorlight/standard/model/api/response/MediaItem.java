@@ -14,7 +14,18 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class MediaItem {
 
+    private Boolean ableToEdit;
+    private Integer duration;
+    private Integer height;
+    private Boolean isSyncProgram;
+    private Long lastModifiedTime;
+    private String md5;
     private String name;
+    private Integer originHeight;
+    private Integer originWidth;
+    private Integer programType;
+    private String publishedmd5;
     private Long size;
-    private String lastModified;
+    private String source;
+    private Integer width;
 }

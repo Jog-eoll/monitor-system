@@ -197,13 +197,13 @@ public final class ConfigSysFile {
     }
 
     /**
-     * "64x64" → screenWidth, screenHeight
+     * "64x64" → displayWidth, displayHeight
      */
     private static void parseDisplaySize(String val, Info c) {
         int x = val.indexOf('x');
         if (x > 0) {
-            c.screenWidth = Integer.parseInt(val.substring(0, x));
-            c.screenHeight = Integer.parseInt(val.substring(x + 1));
+            c.displayWidth = Integer.parseInt(val.substring(0, x));
+            c.displayHeight = Integer.parseInt(val.substring(x + 1));
         }
     }
 
@@ -269,7 +269,7 @@ public final class ConfigSysFile {
      * "[2026-06-17 09:12:47] GMT+00:00" → dateTime, timezone
      */
     private static void parseDateTime(String val, Info c) {
-        Matcher m = Pattern.compile("\\[([^\\]]+)]\\s*(.+)").matcher(val);
+        Matcher m = Pattern.compile("\\[([^]]+)]\\s*(.+)").matcher(val);
         if (m.matches()) {
             c.dateTime = m.group(1);
             c.timezone = m.group(2);
@@ -325,8 +325,8 @@ public final class ConfigSysFile {
         public String updateHardware;  // "PF9246MAGE"
 
         // ── 屏幕与显示 ──
-        public int screenWidth;
-        public int screenHeight;
+        public int displayWidth;
+        public int displayHeight;
         public String monitorStatus;   // "Play Mode"
         public int brightPercent1;     // 亮度1 百分比 (80)
         public int brightAdValue1;     // 亮度1 AD值 (65), -1=NA

@@ -7,6 +7,9 @@ import com.gateway.device.protocol.model.DeviceSelector;
 import com.gateway.device.protocol.model.params.EmptyParams;
 import com.gateway.device.protocol.model.params.depend.CommandParams;
 
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * 设备能力定义 —— 常量化替代枚举，携带参数类型 P。
  *
@@ -19,6 +22,10 @@ import com.gateway.device.protocol.model.params.depend.CommandParams;
  */
 public final class DeviceCapability<P extends CommandParams> {
 
+    /**
+     * 全局名称注册表，启动时检测 of() 的名称重复
+     */
+    private static final Set<String> REGISTERED_NAMES = ConcurrentHashMap.newKeySet();
     private final String name;
     private final Class<P> paramsType;
 
@@ -32,6 +39,10 @@ public final class DeviceCapability<P extends CommandParams> {
      */
     public static <P extends CommandParams> DeviceCapability<P> of(
             String name, Class<P> paramsType) {
+        if (!REGISTERED_NAMES.add(name)) {
+            throw new IllegalStateException(
+                    "DeviceCapability 名称重复: \"" + name + "\" — 请检查所有 *Capability 类的 of() 调用");
+        }
         return new DeviceCapability<>(name, paramsType);
     }
 
@@ -39,6 +50,10 @@ public final class DeviceCapability<P extends CommandParams> {
      * 创建无参能力
      */
     public static DeviceCapability<EmptyParams> of(String name) {
+        if (!REGISTERED_NAMES.add(name)) {
+            throw new IllegalStateException(
+                    "DeviceCapability 名称重复: \"" + name + "\" — 请检查所有 *Capability 类的 of() 调用");
+        }
         return new DeviceCapability<>(name, EmptyParams.class);
     }
 

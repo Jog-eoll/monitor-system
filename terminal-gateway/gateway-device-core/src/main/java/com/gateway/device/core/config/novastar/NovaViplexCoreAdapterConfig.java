@@ -7,6 +7,7 @@ import com.gateway.device.protocol.base.novastar.viplexcore.ViplexCoreAccount;
 import com.gateway.device.protocol.base.novastar.viplexcore.builder.ViplexProgramPipeline;
 import com.gateway.device.protocol.base.novastar.viplexcore.builder.ViplexTextPageBuilder;
 import com.gateway.device.protocol.base.novastar.viplexcore.text.NovaViplexCoreTextStyle;
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.transport.sdk.novastar.viplexcore.ViplexCoreLibrary;
 import com.gateway.device.transport.sdk.novastar.viplexcore.ViplexCoreLifecycleManager;
 import lombok.extern.slf4j.Slf4j;
@@ -70,7 +71,7 @@ public class NovaViplexCoreAdapterConfig {
             ViplexCoreLifecycleManager lifecycleManager,
             NovaViplexCoreTextStyle textStyle) {
         ViplexTextPageBuilder textPageBuilder = new ViplexTextPageBuilder(textStyle);
-        return new ViplexProgramPipeline(lifecycleManager, textPageBuilder, Duration.ofSeconds(10));
+        return new ViplexProgramPipeline(lifecycleManager, textPageBuilder, Duration.ofMillis(GatewayTimeoutConstants.DEVICE_OPERATION_DEFAULT_MS));
     }
 
     @Bean

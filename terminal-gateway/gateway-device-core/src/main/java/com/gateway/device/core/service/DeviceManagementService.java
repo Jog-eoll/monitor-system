@@ -4,12 +4,14 @@ import com.gateway.device.core.store.DeviceRegistryManager;
 import com.gateway.device.protocol.model.DeviceContext;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * 设备管理服务 —— 设备注册/查询/离线管理。
+ * 设备管理服务 —— 对外部模块暴露的设备注册/查询/管理 API。
+ *
+ * <p>com.gateway.device 内部代码应直接使用 {@link com.gateway.device.core.store.DeviceRegistryManager}，
+ * 本服务仅作为外部模块的统一入口外观。</p>
  */
 public class DeviceManagementService {
 
@@ -17,20 +19,6 @@ public class DeviceManagementService {
 
     public DeviceManagementService(DeviceRegistryManager deviceRegistry) {
         this.deviceRegistry = deviceRegistry;
-    }
-
-    /**
-     * 批量注册设备
-     */
-    public void registerAll(Collection<DeviceContext> devices) {
-        devices.forEach(deviceRegistry::register);
-    }
-
-    /**
-     * 注册单台设备
-     */
-    public void register(DeviceContext device) {
-        deviceRegistry.register(device);
     }
 
     /**
@@ -48,21 +36,24 @@ public class DeviceManagementService {
     }
 
     /**
-     * 按厂商筛选
+     * 注册或更新设备
      */
-    public List<DeviceContext> listByVendor(String vendor) {
-        return deviceRegistry.list().stream()
-                .filter(d -> vendor.equals(d.getVendor()))
-                .collect(Collectors.toList());
+    public void register(DeviceContext device) {
+        deviceRegistry.register(device);
     }
 
     /**
-     * 列出在线设备
+     * 标记设备在线
      */
-    public List<DeviceContext> listOnline() {
-        return deviceRegistry.list().stream()
-                .filter(DeviceContext::isOnline)
-                .collect(Collectors.toList());
+    public void markOnline(String deviceId) {
+        deviceRegistry.markOnline(deviceId);
+    }
+
+    /**
+     * 标记设备离线
+     */
+    public void markOffline(String deviceId) {
+        deviceRegistry.markOffline(deviceId);
     }
 
     /**
@@ -73,17 +64,13 @@ public class DeviceManagementService {
     }
 
     /**
-     * 标记离线
+     * 列出在线设备
      */
-    public void markOffline(String deviceId) {
-        deviceRegistry.markOffline(deviceId);
-    }
-
-    /**
-     * 标记在线
-     */
-    public void markOnline(String deviceId) {
-        deviceRegistry.markOnline(deviceId);
+    public Collection<DeviceContext> listValid() {
+        return deviceRegistry.list().stream()
+                .filter(DeviceContext::isOnline)
+                .filter(DeviceContext::isLoggedIn)
+                .collect(Collectors.toList());
     }
 
     /**

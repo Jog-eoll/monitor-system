@@ -67,6 +67,15 @@ public interface ViplexCoreChannel {
     ViplexResponse searchAllDevices(Duration timeout);
 
     /**
+     * 登出指定设备（调用 nvLogoutAsync，清理本地会话）。
+     *
+     * @param sn      设备序列号
+     * @param timeout 登出超时
+     * @return ViplexResponse，success 表示登出成功
+     */
+    ViplexResponse logout(String sn, Duration timeout);
+
+    /**
      * 获取已知可用账号
      */
     ViplexCoreAccount getKnownAccount(String sn);

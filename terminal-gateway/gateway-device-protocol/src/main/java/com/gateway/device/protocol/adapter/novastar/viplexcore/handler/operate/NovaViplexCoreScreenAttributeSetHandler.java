@@ -17,8 +17,6 @@ import com.gateway.device.protocol.model.params.ScreenAttributeParams;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
-import java.time.Duration;
-
 /**
  * 显示屏点阵配屏处理器 —— 设置 LED 模组物理点阵（接收卡带载宽高）。
  *
@@ -43,18 +41,13 @@ public class NovaViplexCoreScreenAttributeSetHandler extends AbstractNovaViplexC
     }
 
     @Override
-    protected Duration getTimeout() {
-        return Duration.ofSeconds(30);
-    }
-
-    @Override
     public CommandResult execute(DeviceContext device, ScreenAttributeParams params) {
         String sn = device.getSn();
         if (StringUtils.isEmpty(sn)) {
             return CommandResult.failure(StandardErrorCode.INVALID_PARAM, "设备 SN 缺失");
         }
 
-        if (params == null || params.getWidth() == null || params.getHeight() == null) {
+        if (params == null) {
             return CommandResult.failure(StandardErrorCode.INVALID_PARAM, "缺少 width/height 参数");
         }
 

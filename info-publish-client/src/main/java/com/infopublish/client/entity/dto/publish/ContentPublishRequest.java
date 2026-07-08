@@ -14,6 +14,7 @@ import java.io.Serializable;
 public class ContentPublishRequest implements Serializable {
 
     private static final long serialVersionUID = 1L;
+    private static final int DEFAULT_TIMEOUT_MS = 600000;
 
     @NotBlank(message = "requestId 不能为空")
     private String requestId;
@@ -31,7 +32,7 @@ public class ContentPublishRequest implements Serializable {
     private Integer timeoutMs;
 
     public int getEffectiveTimeoutMs() {
-        return timeoutMs != null && timeoutMs > 0 ? timeoutMs : 300000;
+        return timeoutMs != null && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS;
     }
 
     @Data

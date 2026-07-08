@@ -1,5 +1,6 @@
 package com.gateway.device.core.task;
 
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 
@@ -25,8 +26,8 @@ public class TaskHousekeeper {
      */
     @Scheduled(fixedDelay = 10_000)
     public void scanTimeoutTasks() {
-        taskManager.markTimeoutBefore(Duration.ofSeconds(60));
-        ipTaskManager.markTimeoutBefore(Duration.ofSeconds(60));
+        taskManager.markTimeoutBefore(Duration.ofSeconds(GatewayTimeoutConstants.TASK_TIMEOUT_MARK_SEC));
+        ipTaskManager.markTimeoutBefore(Duration.ofSeconds(GatewayTimeoutConstants.TASK_TIMEOUT_MARK_SEC));
     }
 
     /**
@@ -35,8 +36,8 @@ public class TaskHousekeeper {
     @Scheduled(fixedDelay = 60_000)
     public void cleanExpiredTasks() {
         int before = taskManager.activeCount() + ipTaskManager.activeCount();
-        taskManager.removeFinishedBefore(Duration.ofMinutes(30));
-        ipTaskManager.removeFinishedBefore(Duration.ofMinutes(30));
+        taskManager.removeFinishedBefore(Duration.ofMinutes(GatewayTimeoutConstants.TASK_EXPIRY_CLEANUP_MIN));
+        ipTaskManager.removeFinishedBefore(Duration.ofMinutes(GatewayTimeoutConstants.TASK_EXPIRY_CLEANUP_MIN));
         int after = taskManager.activeCount() + ipTaskManager.activeCount();
         if (before > after) {
             log.debug("清理过期任务: {} → {}", before, after);

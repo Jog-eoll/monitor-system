@@ -26,6 +26,8 @@ public final class ProtocolConstant {
      */
     public static final byte NUL = 0x00;
 
+    public static final String DEFAULT_NETWORK_INTERFACE = "eth0";
+
     private ProtocolConstant() {
     }
 

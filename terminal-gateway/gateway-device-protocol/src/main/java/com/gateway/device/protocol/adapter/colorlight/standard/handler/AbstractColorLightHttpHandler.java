@@ -2,26 +2,27 @@ package com.gateway.device.protocol.adapter.colorlight.standard.handler;
 
 import com.fasterxml.jackson.databind.JavaType;
 import com.gateway.device.protocol.adapter.colorlight.standard.ColorLightCredentialStore;
-import com.gateway.device.protocol.api.CapabilityHandler;
-import com.gateway.device.protocol.api.DeviceAuthStore;
-import com.gateway.device.protocol.api.DeviceTransport;
-import com.gateway.device.protocol.api.ProtocolCodec;
+import com.gateway.device.protocol.api.*;
 import com.gateway.device.protocol.base.colorlight.standard.ColorLightAccount;
 import com.gateway.device.protocol.base.colorlight.standard.ColorLightApi;
 import com.gateway.device.protocol.base.colorlight.standard.codec.ColorLightHttpMethod;
 import com.gateway.device.protocol.base.colorlight.standard.codec.ColorLightHttpRequest;
 import com.gateway.device.protocol.base.colorlight.standard.codec.ColorLightHttpResponse;
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import com.gateway.device.protocol.common.JsonCustomMapper;
 import com.gateway.device.protocol.common.LittleEndianByteBufUtils;
 import com.gateway.device.protocol.common.constant.VendorDefaultPort;
+import com.gateway.device.protocol.common.file.Thumbs;
 import com.gateway.device.protocol.model.CommandResult;
 import com.gateway.device.protocol.model.DeviceAuthEntry;
 import com.gateway.device.protocol.model.DeviceContext;
 import com.gateway.device.protocol.model.params.depend.CommandParams;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.codec.digest.DigestUtils;
 
 import java.net.HttpURLConnection;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -160,6 +161,16 @@ public abstract class AbstractColorLightHttpHandler<P extends CommandParams> imp
         return executeHttp(device, buildRequest(device, ColorLightHttpMethod.POST, uri, body, headers));
     }
 
+    /**
+     * 发送带 jsonmd5 头的 JSON POST 请求。
+     * ColorLight 设备开启加密校验时强制要求 body 的 MD5 值。
+     */
+    protected ColorLightHttpResponse postJsonWithMd5(DeviceContext device, String uri, byte[] body) {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("jsonmd5", DigestUtils.md5Hex(body));
+        return executeHttp(device, buildRequest(device, ColorLightHttpMethod.POST, uri, body, headers));
+    }
+
     // ── JSON 请求体辅助方法 ──
 
     protected ColorLightHttpResponse delete(DeviceContext device, String uri) {
@@ -240,17 +251,6 @@ public abstract class AbstractColorLightHttpHandler<P extends CommandParams> imp
         return account != null ? account.toAuthorizationHeader() : null;
     }
 
-    /**
-     * 持久化设备凭据（认证通过后调用，委托给 {@link DeviceAuthStore#update}）。
-     */
-    protected void saveCredentials(DeviceContext device, String accountId, String password) {
-        if (authStore == null) return;
-        String deviceId = device.getDeviceId();
-        if (deviceId == null || deviceId.isEmpty()) return;
-        authStore.update(deviceId, DeviceAuthEntry.builder()
-                .accountId(accountId).password(password).build());
-    }
-
     private ColorLightHttpResponse executeHttp(DeviceContext device, ColorLightHttpRequest request) {
         String host = device.getIp();
         int port = device.getPort() > 0 ? device.getPort() : VendorDefaultPort.COLOR_LIGHT_STANDARD.getPort();
@@ -264,27 +264,17 @@ public abstract class AbstractColorLightHttpHandler<P extends CommandParams> imp
                 LittleEndianByteBufUtils.toString(request.getBody()));
         long startTime = System.currentTimeMillis();
         try {
-            byte[] reqBytes = codec.encode(request);
-            if (log.isDebugEnabled()) {
-                log.debug("[{}] >>> transport request hex dump ({} bytes): {}",
-                        device.getVendor(), reqBytes.length,
-                        LittleEndianByteBufUtils.toHex(reqBytes));
-            }
-            byte[] respBytes = transport.sendAndReceive(device, reqBytes, getTimeout())
+            Object httpReq = codec.encodeRequest(request);
+            ParsedHttpResponse parsed = transport.sendHttp(device, httpReq, getTimeout())
                     .get(getTimeout().toMillis(), TimeUnit.MILLISECONDS);
-            if (log.isDebugEnabled()) {
-                log.debug("[{}] >>> transport response hex dump ({} bytes): {}",
-                        device.getVendor(), respBytes.length,
-                        LittleEndianByteBufUtils.toHex(respBytes));
-            }
-            ColorLightHttpResponse response = codec.decode(respBytes);
+            ColorLightHttpResponse response = codec.decodeParsed(parsed);
             long elapsed = System.currentTimeMillis() - startTime;
             if (response != null) {
                 int respBodySize = response.getBody() != null ? response.getBody().length : 0;
-                log.debug("[{}] < HTTP {} {} → {} {}  body={}B  wire={}B  elapsed={}ms body={}",
+                log.debug("[{}] < HTTP {} {} → {} {}  body={}B  elapsed={}ms body={}",
                         target, request.getMethod(), request.getUri(),
                         response.getStatusCode(), statusText(response.getStatusCode()),
-                        respBodySize, respBytes != null ? respBytes.length : 0, elapsed,
+                        respBodySize, elapsed,
                         LittleEndianByteBufUtils.toString(response.getBody()));
             } else {
                 log.debug("[{}] < HTTP {} {} → FAILED  elapsed={}ms",
@@ -308,11 +298,25 @@ public abstract class AbstractColorLightHttpHandler<P extends CommandParams> imp
         }
     }
 
+    protected void postSetThumbnail(DeviceContext device, String vsnName) {
+        // ── 设置默认缩略图（非致命） ──
+        // PUT /api/programthumbnail/{name}.vsn
+        ColorLightHttpResponse resp = put(device,
+                ColorLightApi.PROGRAM_THUMBNAIL_SET.resolvePath(vsnName + ".vsn"),
+                Thumbs.DEFAULT_IMAGE_JSON.getBytes(StandardCharsets.UTF_8));
+        if (resp == null || (resp.getStatusCode() != HttpURLConnection.HTTP_OK
+                && resp.getStatusCode() != HttpURLConnection.HTTP_CREATED)) {
+            log.warn("[{}] 设置缩略图失败 (非致命): status={}", device.getIp(), resp != null ? resp.getStatusCode() : -1);
+        } else {
+            log.debug("[{}] 设置缩略图成功: status={}", device.getIp(), resp.getStatusCode());
+        }
+    }
+
     /**
      * 命令超时，子类可按需覆盖。默认 10 秒。
      */
     protected Duration getTimeout() {
-        return Duration.ofSeconds(10);
+        return Duration.ofMillis(GatewayTimeoutConstants.DEVICE_OPERATION_DEFAULT_MS);
     }
 
     // ── 结果辅助方法 ──

@@ -39,6 +39,10 @@ public final class StandardErrorCode {
      */
     public static final String PROTOCOL_ERROR = "PROTOCOL_ERROR";
     /**
+     * 设备未登录，拒绝执行功能命令
+     */
+    public static final String DEVICE_NOT_LOGGED_IN = "DEVICE_NOT_LOGGED_IN";
+    /**
      * 系统内部错误
      */
     public static final String SYSTEM_ERROR = "SYSTEM_ERROR";

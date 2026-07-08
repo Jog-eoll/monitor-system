@@ -56,7 +56,7 @@ public class NovaViplexCoreFontsGetHandler extends AbstractNovaViplexCoreHandler
 
         long start = System.currentTimeMillis();
         try {
-            String json = ViplexCoreJsonBuilder.buildFontGetJson(sn);
+            String json = ViplexCoreJsonBuilder.buildSnJson(sn);
             ViplexResponse resp = channel()
                     .execute(SdkFunction.NV_GET_TERMINAL_FONT_ASYNC, json, getTimeout());
 

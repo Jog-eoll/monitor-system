@@ -17,6 +17,7 @@ import java.util.List;
 public class PrecheckRequest implements Serializable {
 
     private static final long serialVersionUID = 1L;
+    private static final int DEFAULT_TIMEOUT_MS = 600000;
 
     /** 本次发布请求 ID，需支持幂等 */
     @NotBlank(message = "requestId 不能为空")
@@ -38,13 +39,13 @@ public class PrecheckRequest implements Serializable {
     /** 操作人 ID */
     private String operatorId;
 
-    /** 整体超时时间（毫秒），默认 300000（5分钟） */
+    /** 整体超时时间（毫秒），默认 600000（10分钟） */
     private Integer timeoutMs;
 
     /**
      * 获取有效超时时间
      */
     public int getEffectiveTimeoutMs() {
-        return (timeoutMs != null && timeoutMs > 0) ? timeoutMs : 300000;
+        return (timeoutMs != null && timeoutMs > 0) ? timeoutMs : DEFAULT_TIMEOUT_MS;
     }
 }

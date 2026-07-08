@@ -9,7 +9,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -24,23 +23,20 @@ public class InMemoryBatchTaskManager {
     private final ConcurrentMap<String, CompletableFuture<BatchTask>> futures = new ConcurrentHashMap<>();
 
     /**
-     * 创建批量任务
+     * 创建批量任务（显式 taskId）。
      */
-    public BatchTask createTask(BatchCommandRequest request, List<DeviceContext> targets) {
-        String taskId = request.getRequestId() != null ? request.getRequestId() : UUID.randomUUID().toString();
+    public BatchTask createTask(BatchCommandRequest request, List<DeviceContext> targets, String taskId) {
         BatchTask task = new BatchTask(taskId, request.getCapability(), targets.size());
         tasks.put(taskId, task);
         return task;
     }
 
     /**
-     * 创建空任务（无匹配设备）
+     * 创建空任务（无匹配设备，显式 taskId）。
      */
-    public BatchTask createEmptyTask(BatchCommandRequest request) {
-        String taskId = request.getRequestId() != null ? request.getRequestId() : UUID.randomUUID().toString();
+    public void createEmptyTask(BatchCommandRequest request, String taskId) {
         BatchTask task = new BatchTask(taskId, request.getCapability(), 0);
         tasks.put(taskId, task);
-        return task;
     }
 
     /**
@@ -55,6 +51,16 @@ public class InMemoryBatchTaskManager {
      */
     public void removeFuture(String taskId) {
         futures.remove(taskId);
+    }
+
+    /**
+     * 完成空任务（无匹配设备），直接结束注册的 future。
+     */
+    public void completeEmpty(String taskId) {
+        CompletableFuture<BatchTask> future = futures.remove(taskId);
+        if (future != null) {
+            get(taskId).ifPresent(future::complete);
+        }
     }
 
     /**

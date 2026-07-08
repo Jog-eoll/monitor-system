@@ -1,10 +1,32 @@
 package com.gateway.device.protocol.common.capability.expand;
 
+import com.gateway.device.protocol.common.capability.depend.DeviceCapability;
+import com.gateway.device.protocol.model.params.EmptyParams;
+import com.gateway.device.protocol.model.params.ProgramAutoScaleParams;
+import com.gateway.device.protocol.model.params.ProgramThumbnailGetParams;
+
 /**
  * ColorLight 协议私有能力全集（PlayerSDK HTTP REST API）。
  * 本类仅定义 ColorLight 私有能力，不重复 Common 已定义的能力。</p>
  */
 public final class ColorLightCapability {
+    /**
+     * 节目分辨率自适应屏幕分辨率开关 —— PUT /api/programautoscale
+     */
+    public static final DeviceCapability<ProgramAutoScaleParams> PROGRAM_AUTO_SCALE
+            = DeviceCapability.of("PROGRAM_AUTO_SCALE", ProgramAutoScaleParams.class);
+
+    /**
+     * 获取设备当前屏幕截图（PNG 二进制）
+     */
+    public static final DeviceCapability<EmptyParams> SCREENSHOT_GET
+            = DeviceCapability.of("SCREENSHOT_GET");
+
+    /**
+     * 获取局域网节目缩略图（JPEG 二进制）
+     */
+    public static final DeviceCapability<ProgramThumbnailGetParams> PROGRAM_THUMBNAIL_GET
+            = DeviceCapability.of("PROGRAM_THUMBNAIL_GET", ProgramThumbnailGetParams.class);
 
     private ColorLightCapability() {
     }
@@ -15,7 +37,6 @@ public final class ColorLightCapability {
     // ════════════════════════════════════════════════════════════
 
     // ── 电源 / 屏幕状态 ──
-    // 获取设备截图 — "/api/screenshot"
 
     // ── 亮度 / 色温 / 色彩 ──
     // 查询亮度/色温 — "/api/brightnessandcolortemp.json"
@@ -70,8 +91,6 @@ public final class ColorLightCapability {
     // [已弃用] 快速发布单行文本节目 — "/api/program/singletext" — 使用 "/api/program/{0}.vsn" (MEDIA_UPLOAD) 替代
     // 清空节目缓存资源 — "/api/clrcache"
     // 清空局域网无用文件 — "/api/clrfiles"
-    // 查询节目分辨率自适应开关 — "/api/programautoscale.json"
-    // 配置节目分辨率自适应 — "/api/programautoscale"
     // 查询同步节目开关状态 — "/api/sync_program_mode.json"
     // 设置同步节目开关 — "/api/sync_program_mode" — SyncProgramModePayload
     // 设置节目名提示 — "/api/showtoast"

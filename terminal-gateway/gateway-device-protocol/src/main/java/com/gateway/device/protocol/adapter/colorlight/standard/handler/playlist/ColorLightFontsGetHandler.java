@@ -7,7 +7,6 @@ import com.gateway.device.protocol.api.ProtocolCodec;
 import com.gateway.device.protocol.base.colorlight.standard.ColorLightApi;
 import com.gateway.device.protocol.base.colorlight.standard.codec.ColorLightHttpRequest;
 import com.gateway.device.protocol.base.colorlight.standard.codec.ColorLightHttpResponse;
-import com.gateway.device.protocol.base.colorlight.standard.model.api.response.FontInfo;
 import com.gateway.device.protocol.common.capability.CommonDeviceCapability;
 import com.gateway.device.protocol.common.capability.depend.DeviceCapability;
 import com.gateway.device.protocol.model.CommandResult;
@@ -40,7 +39,7 @@ public class ColorLightFontsGetHandler extends AbstractColorLightHttpHandler<Emp
         if (resp == null || resp.getStatusCode() != HttpURLConnection.HTTP_OK) {
             return failureResult("CL_FONT_GET_FAIL", "Failed to get fonts list");
         }
-        java.util.List<FontInfo> fonts = parseJsonArray(resp, FontInfo.class);
+        java.util.List<String> fonts = parseJsonArray(resp, String.class);
         return successResult(fonts);
     }
 }

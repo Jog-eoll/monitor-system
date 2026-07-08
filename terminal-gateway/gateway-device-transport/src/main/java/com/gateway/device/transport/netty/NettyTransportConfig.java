@@ -1,5 +1,6 @@
 package com.gateway.device.transport.netty;
 
+import com.gateway.device.protocol.common.GatewayTimeoutConstants;
 import lombok.Data;
 
 /**
@@ -31,7 +32,7 @@ public class NettyTransportConfig {
     /**
      * 请求默认超时（毫秒）
      */
-    private long requestTimeoutMs = 5000;
+    private long requestTimeoutMs = GatewayTimeoutConstants.TCP_REQUEST_TIMEOUT_MS;
 
     /**
      * 最大重试次数
@@ -41,7 +42,7 @@ public class NettyTransportConfig {
     /**
      * 心跳间隔（秒）
      */
-    private int heartbeatIntervalSec = 30;
+    private int heartbeatIntervalSec = GatewayTimeoutConstants.HEARTBEAT_INTERVAL_SEC;
 
     /**
      * 心跳失败多少次后标记离线
@@ -51,17 +52,17 @@ public class NettyTransportConfig {
     /**
      * 重连退避初始间隔（秒）
      */
-    private int reconnectBaseSec = 1;
+    private int reconnectBaseSec = GatewayTimeoutConstants.RECONNECT_BASE_SEC;
 
     /**
      * 重连退避最大间隔（秒）
      */
-    private int reconnectMaxSec = 30;
+    private int reconnectMaxSec = GatewayTimeoutConstants.RECONNECT_MAX_SEC;
 
     /**
      * Channel 空闲超时（秒），超时后关闭并从池中移除
      */
-    private int channelIdleTimeoutSec = 300;
+    private int channelIdleTimeoutSec = GatewayTimeoutConstants.CHANNEL_IDLE_TIMEOUT_SEC;
 
     // ── 响应等待线程池 ──
 
@@ -85,5 +86,12 @@ public class NettyTransportConfig {
     /**
      * TCP 连接超时（毫秒）
      */
-    private int connectTimeoutMs = 5000;
+    private int connectTimeoutMs = GatewayTimeoutConstants.TCP_CONNECT_TIMEOUT_MS;
+
+    // ── HTTP ──
+
+    /**
+     * HTTP 响应体最大长度（字节），用于 HttpObjectAggregator
+     */
+    private int httpMaxContentLength = 65536;
 }

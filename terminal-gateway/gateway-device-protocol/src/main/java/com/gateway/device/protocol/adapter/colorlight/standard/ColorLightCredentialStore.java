@@ -1,6 +1,7 @@
 package com.gateway.device.protocol.adapter.colorlight.standard;
 
 import com.gateway.device.protocol.base.colorlight.standard.ColorLightAccount;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collections;
@@ -18,6 +19,12 @@ import java.util.List;
 @Slf4j
 public class ColorLightCredentialStore {
 
+    /**
+     * -- GETTER --
+     * 获取预配置凭据列表（不可变视图）。
+     * 用于设备注册时密码遍历尝试。
+     */
+    @Getter
     private volatile List<ColorLightAccount> preconfigured = Collections.emptyList();
 
     public ColorLightCredentialStore() {
@@ -40,14 +47,6 @@ public class ColorLightCredentialStore {
      */
     public ColorLightAccount get(String deviceId) {
         return fallbackToPreconfiguredOrDefault();
-    }
-
-    /**
-     * 获取预配置凭据列表（不可变视图）。
-     * 用于设备注册时密码遍历尝试。
-     */
-    public List<ColorLightAccount> getPreconfigured() {
-        return preconfigured;
     }
 
     /**

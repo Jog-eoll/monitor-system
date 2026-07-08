@@ -37,7 +37,7 @@ public final class NovaViplexCoreCapability {
     // ════════════════════════════════════════════════════════════
 
     // ── 登录认证 ──
-    // 退出登录 — nvLogoutAsync
+    // [已激活] 退出登录 — nvLogoutAsync（NovaViplexCoreDeviceRegistrationProvider.logout）
     // 修改密码 — nvChangePassWordAsync
 
     // ── 设备信息 ──

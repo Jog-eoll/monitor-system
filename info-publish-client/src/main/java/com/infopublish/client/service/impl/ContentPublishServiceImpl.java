@@ -24,6 +24,7 @@ import javax.annotation.Resource;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.URLEncoder;
 import java.net.URL;
 import java.security.MessageDigest;
 import java.util.LinkedHashMap;
@@ -38,6 +39,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class ContentPublishServiceImpl implements ContentPublishService {
 
+    private static final long DELIVERY_STATUS_POLL_INTERVAL_MS = 200L;
+
     @Resource
     private SigmaApiClient sigmaApiClient;
 
@@ -50,7 +53,7 @@ public class ContentPublishServiceImpl implements ContentPublishService {
     @Value("${content-publish.gateway-url:${control-command.gateway-url:http://127.0.0.1:8092}}")
     private String gatewayUrl;
 
-    @Value("${content-publish.download-timeout-ms:30000}")
+    @Value("${content-publish.download-timeout-ms:120000}")
     private int downloadTimeoutMs;
 
     @Value("${content-publish.max-file-size-mb:50}")
@@ -112,18 +115,168 @@ public class ContentPublishServiceImpl implements ContentPublishService {
             }
 
             ContentPublishResponse response =
-                    ContentPublishResponse.accepted(requestId, precheck, deliveryTaskId, deliveryRaw);
+                    buildDeliveryResponse(requestId, precheck, deliveryTaskId, deliveryRaw, request);
             attachProgram(response, precheck, program, true);
             if (hasText(requestId)) {
-                idempotentCache.putIfAbsent(requestId, response);
+                if (response.isSuccess()) {
+                    idempotentCache.putIfAbsent(requestId, response);
+                }
             }
-            log.info("[内容发布] 投递已提交: requestId={}, playlistId={}, deliveryTaskId={}",
-                    requestId, program.getPlaylistId(), deliveryTaskId);
+            log.info("[内容发布] 投递完成: requestId={}, playlistId={}, deliveryTaskId={}, success={}, status={}",
+                    requestId, program.getPlaylistId(), deliveryTaskId, response.isSuccess(),
+                    response.getDelivery() != null ? response.getDelivery().getStatus() : null);
             return response;
         } catch (Exception e) {
             log.error("[内容发布] 执行异常: requestId={}, error={}", requestId, e.getMessage(), e);
             return ContentPublishResponse.error(requestId, "PUBLISH_EXECUTE_FAILED",
                     "内容发布执行异常: " + e.getMessage());
+        }
+    }
+
+    private ContentPublishResponse buildDeliveryResponse(String requestId,
+                                                         PrecheckResponse precheck,
+                                                         String deliveryTaskId,
+                                                         Map<String, Object> deliveryRaw,
+                                                         ContentPublishRequest request) {
+        Map<String, Object> deliveryStatus = awaitDeliveryTerminalStatus(deliveryTaskId,
+                request != null ? request.getEffectiveTimeoutMs() : 600000);
+        Map<String, Object> mergedDelivery = mergeDeliveryStatus(deliveryRaw, deliveryStatus);
+        if (isDeliveryFailure(deliveryStatus)) {
+            String message = deliveryFailureMessage(deliveryStatus);
+            log.warn("[content-publish] secure delivery failed: requestId={}, deliveryTaskId={}, status={}, message={}",
+                    requestId, deliveryTaskId, stringValue(deliveryStatus.get("status")), message);
+            ContentPublishResponse response = ContentPublishResponse.error(requestId,
+                    "DELIVERY_FAILED", message);
+            response.attachDelivery(deliveryTaskId, mergedDelivery);
+            return response;
+        }
+        return ContentPublishResponse.accepted(requestId, precheck, deliveryTaskId, mergedDelivery);
+    }
+
+    private Map<String, Object> awaitDeliveryTerminalStatus(String deliveryTaskId, int timeoutMs) {
+        long waitMs = Math.max(1000L, timeoutMs);
+        long deadline = System.currentTimeMillis() + waitMs;
+        Map<String, Object> lastStatus = null;
+        RuntimeException lastError = null;
+        while (System.currentTimeMillis() <= deadline) {
+            try {
+                Map<String, Object> status = queryDeliveryTaskStatus(deliveryTaskId);
+                lastStatus = status;
+                String state = stringValue(status.get("status"));
+                if (isTerminalDeliveryStatus(state) || Boolean.FALSE.equals(status.get("found"))) {
+                    return status;
+                }
+            } catch (RuntimeException e) {
+                lastError = e;
+                log.warn("[content-publish] query secure delivery status failed: deliveryTaskId={}, error={}",
+                        deliveryTaskId, e.getMessage());
+                return deliveryStatus("FAILED", deliveryTaskId,
+                        "secure delivery status query failed: " + e.getMessage());
+            }
+
+            long remaining = deadline - System.currentTimeMillis();
+            if (remaining <= 0) {
+                break;
+            }
+            sleep(Math.min(DELIVERY_STATUS_POLL_INTERVAL_MS, remaining));
+        }
+        if (lastStatus != null) {
+            return mergeDeliveryStatus(lastStatus,
+                    deliveryStatus("TIMEOUT", deliveryTaskId, "secure delivery status wait timeout"));
+        }
+        String message = lastError != null ? lastError.getMessage() : "secure delivery status unavailable";
+        return deliveryStatus("TIMEOUT", deliveryTaskId, message);
+    }
+
+    private Map<String, Object> queryDeliveryTaskStatus(String deliveryTaskId) {
+        String url = normalizeBaseUrl(gatewayUrl) + "/api/secure-delivery/tasks/" + encodePath(deliveryTaskId);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(java.util.Collections.singletonList(MediaType.APPLICATION_JSON));
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET,
+                new HttpEntity<>(headers), String.class);
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            throw new RuntimeException("HTTP " + response.getStatusCodeValue());
+        }
+        Map<String, Object> parsed = JSON.parseObject(response.getBody(), Map.class);
+        if (parsed == null) {
+            throw new RuntimeException("empty response");
+        }
+        return parsed;
+    }
+
+    private Map<String, Object> mergeDeliveryStatus(Map<String, Object> first,
+                                                    Map<String, Object> second) {
+        Map<String, Object> merged = new LinkedHashMap<>();
+        if (first != null) {
+            merged.putAll(first);
+        }
+        if (second != null) {
+            merged.putAll(second);
+        }
+        return merged;
+    }
+
+    private Map<String, Object> deliveryStatus(String status, String deliveryTaskId, String message) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("found", true);
+        result.put("status", status);
+        result.put("deliveryTaskId", deliveryTaskId);
+        result.put("message", message);
+        return result;
+    }
+
+    private boolean isDeliveryFailure(Map<String, Object> deliveryStatus) {
+        if (deliveryStatus == null) {
+            return false;
+        }
+        if (Boolean.FALSE.equals(deliveryStatus.get("found"))) {
+            return true;
+        }
+        String status = stringValue(deliveryStatus.get("status"));
+        return "FAILED".equalsIgnoreCase(status)
+                || "TIMEOUT".equalsIgnoreCase(status)
+                || "CANCELED".equalsIgnoreCase(status)
+                || "CANCELLED".equalsIgnoreCase(status);
+    }
+
+    private boolean isTerminalDeliveryStatus(String status) {
+        return "SUCCESS".equalsIgnoreCase(status)
+                || "FAILED".equalsIgnoreCase(status)
+                || "TIMEOUT".equalsIgnoreCase(status)
+                || "CANCELED".equalsIgnoreCase(status)
+                || "CANCELLED".equalsIgnoreCase(status);
+    }
+
+    private String deliveryFailureMessage(Map<String, Object> deliveryStatus) {
+        String status = deliveryStatus != null ? stringValue(deliveryStatus.get("status")) : null;
+        String message = deliveryStatus != null ? stringValue(deliveryStatus.get("message")) : null;
+        if (hasText(message)) {
+            return "secure delivery failed: " + message;
+        }
+        if (hasText(status)) {
+            return "secure delivery failed: status=" + status;
+        }
+        return "secure delivery failed";
+    }
+
+    private String stringValue(Object value) {
+        return value != null ? String.valueOf(value) : null;
+    }
+
+    private String encodePath(String value) {
+        try {
+            return URLEncoder.encode(value, "UTF-8").replace("+", "%20");
+        } catch (Exception e) {
+            throw new RuntimeException("encode path failed: " + value, e);
+        }
+    }
+
+    private void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("wait delivery status interrupted", e);
         }
     }
 

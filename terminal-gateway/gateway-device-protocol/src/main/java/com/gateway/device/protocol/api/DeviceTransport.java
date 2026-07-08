@@ -14,9 +14,20 @@ import java.util.concurrent.CompletableFuture;
 public interface DeviceTransport {
 
     /**
-     * 异步发送并等待响应
+     * 异步发送二进制载荷并等待响应（UDP/TCP 二进制协议）。
      */
     CompletableFuture<byte[]> sendAndReceive(DeviceContext device, byte[] payload, Duration timeout);
+
+    /**
+     * 异步发送 HTTP 请求并等待已解析的响应组件。
+     *
+     * <p>httpRequest 由 Codec 的 {@code encodeRequest()} 产生，实际类型为 Netty HttpRequest。
+     * 使用 Object 避免 protocol 模块依赖 Netty。
+     * 默认抛 UnsupportedOperationException，HTTP 传输实现必须覆盖。</p>
+     */
+    default CompletableFuture<ParsedHttpResponse> sendHttp(DeviceContext device, Object httpRequest, Duration timeout) {
+        throw new UnsupportedOperationException("HTTP transport not supported");
+    }
 
     /**
      * 仅发送（广播/通知等无需响应场景）

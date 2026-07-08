@@ -50,6 +50,10 @@ public enum ColorLightApi {
      */
     DIMENSION(ColorLightHttpMethod.GET, "/api/dimension.json"),
     /**
+     * GET /api/screenshot — 获取设备当前屏幕截图（PNG 格式）
+     */
+    SCREENSHOT(ColorLightHttpMethod.GET, "/api/screenshot"),
+    /**
      * GET /api/terminal.json — 设备名称与描述
      */
     TERMINAL_GET(ColorLightHttpMethod.GET, "/api/terminal.json"),
@@ -176,8 +180,9 @@ public enum ColorLightApi {
      */
     VOLUME_SET(ColorLightHttpMethod.PUT, "/api/volume"),
     /**
-     * GET /api/ntp.json — NTP 配置查询
+     * GET /api/ntp.json — NTP 配置查询（已废弃，使用 {@link #SYNC_PROGRAM_MODE_GET}）
      */
+    @Deprecated
     NTP_GET(ColorLightHttpMethod.GET, "/api/ntp.json"),
     /**
      * PUT /api/ntp — NTP 配置设置（已废弃，使用 {@link #SYNC_PROGRAM_MODE_SET}）
@@ -403,6 +408,10 @@ public enum ColorLightApi {
      * PUT /api/programthumbnail/{0} — 设置局域网节目缩略图
      */
     PROGRAM_THUMBNAIL_SET(ColorLightHttpMethod.PUT, "/api/programthumbnail/{0}"),
+    /**
+     * GET /images/{0}.files/{0}.jpeg — 获取局域网节目缩略图
+     */
+    PROGRAM_THUMBNAIL_GET(ColorLightHttpMethod.GET, "/images/{0}.files/{0}.jpeg"),
     /**
      * DELETE /api/clrcache — 清空节目缓存资源
      */

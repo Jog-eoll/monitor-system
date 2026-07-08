@@ -4,6 +4,7 @@ import com.gateway.device.protocol.adapter.jetfileii.standard.handler.AbstractJe
 import com.gateway.device.protocol.api.DeviceTransport;
 import com.gateway.device.protocol.base.jetfileii.standard.command.FileType;
 import com.gateway.device.protocol.base.jetfileii.standard.command.Partition;
+import com.gateway.device.protocol.base.jetfileii.standard.command.ProtocolConst;
 import com.gateway.device.protocol.base.jetfileii.standard.file.JetFileIIFileExtensions;
 import com.gateway.device.protocol.base.jetfileii.standard.helper.JetFileIIMessaging;
 import com.gateway.device.protocol.base.jetfileii.standard.sys.SequentSysHelper;
@@ -33,8 +34,6 @@ import java.util.List;
  */
 @Slf4j
 public class JetFileIIMediaMultiUploadHandler extends AbstractJetFileIIHandler<MediaMultiUploadParams> {
-
-    private static final int DEFAULT_CHUNK_SIZE = 1024;
 
     private final JetFileIIFileExtensions extensions;
 
@@ -115,7 +114,7 @@ public class JetFileIIMediaMultiUploadHandler extends AbstractJetFileIIHandler<M
                 log.debug("[MediaMultiUpload] [{}/{}] order={} type={} → {} ({}B)",
                         i + 1, sorted.size(), entry.getOrder(), mediaType, devicePath, data.length);
 
-                ft.writePathFile(devicePath, data, DEFAULT_CHUNK_SIZE);
+                ft.writePathFile(devicePath, data, ProtocolConst.DEFAULT_CHUNK_SIZE);
                 paths.add(devicePath);
             }
 

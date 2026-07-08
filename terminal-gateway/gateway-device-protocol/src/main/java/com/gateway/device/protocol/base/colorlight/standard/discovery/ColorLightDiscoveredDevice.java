@@ -4,7 +4,7 @@ import com.gateway.device.protocol.api.DiscoveredDevice;
 import lombok.Builder;
 import lombok.Data;
 
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -33,15 +33,10 @@ public class ColorLightDiscoveredDevice implements DiscoveredDevice {
 
     @Override
     public Map<String, Object> getAttributes() {
-        Map<String, Object> attrs = new LinkedHashMap<>();
+        Map<String, Object> attrs = new HashMap<>();
         if (deviceName != null) {
             attrs.put("deviceName", deviceName);
         }
         return attrs;
-    }
-
-    @Override
-    public String toString() {
-        return String.format("%-16s port=%d", ip, sourcePort);
     }
 }

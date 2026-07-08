@@ -7,7 +7,7 @@ import com.gateway.device.protocol.api.ProtocolCodec;
 import com.gateway.device.protocol.base.colorlight.standard.ColorLightApi;
 import com.gateway.device.protocol.base.colorlight.standard.codec.ColorLightHttpRequest;
 import com.gateway.device.protocol.base.colorlight.standard.codec.ColorLightHttpResponse;
-import com.gateway.device.protocol.base.colorlight.standard.model.api.response.MediaItem;
+import com.gateway.device.protocol.base.colorlight.standard.model.api.response.VsnsListInfo;
 import com.gateway.device.protocol.common.capability.CommonDeviceCapability;
 import com.gateway.device.protocol.common.capability.depend.DeviceCapability;
 import com.gateway.device.protocol.model.CommandResult;
@@ -40,7 +40,7 @@ public class ColorLightPlaylistGetHandler extends AbstractColorLightHttpHandler<
         if (resp == null || resp.getStatusCode() != HttpURLConnection.HTTP_OK) {
             return failureResult("CL_PL_GET_FAIL", "Failed to get playlist");
         }
-        java.util.List<MediaItem> items = parseJsonArray(resp, MediaItem.class);
-        return successResult(items);
+        VsnsListInfo vsnList = parseJson(resp, VsnsListInfo.class);
+        return successResult(vsnList);
     }
 }
