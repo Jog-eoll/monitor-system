@@ -38,9 +38,6 @@ public class SystemNetworkChangeService {
     private long commandTimeoutMs;
 
     public Map<String, Object> changeIp(Map<String, Object> payload, String commandMessageId) {
-        if (!enabled) {
-            throw new IllegalStateException("system network change is disabled");
-        }
         if (payload == null) {
             throw new IllegalArgumentException("payload is required");
         }
@@ -81,7 +78,28 @@ public class SystemNetworkChangeService {
         result.put("dryRun", dryRun);
         result.put("applyDefaultRoute", applyDefaultRoute);
         result.put("rollbackSeconds", rollbackSeconds);
+        result.put("systemNetworkChangeEnabled", enabled);
 
+        String addCommand = "ip addr add " + sh(cidr) + " dev " + sh(iface);
+        String routeCommand = applyDefaultRoute
+                ? "ip route replace default via " + sh(gateway) + " dev " + sh(iface)
+                : null;
+        result.put("plannedAddCommand", addCommand);
+        if (routeCommand != null) {
+            result.put("plannedRouteCommand", routeCommand);
+        }
+
+        // dryRun=true 只做参数校验、接口白名单校验和计划生成，不执行任何系统命令，不要求 enabled=true
+        if (dryRun) {
+            result.put("success", true);
+            result.put("message", "dry run passed");
+            return result;
+        }
+
+        // dryRun=false 才进入真实权限、命令、网卡和安全开关检查
+        if (!enabled) {
+            throw new IllegalStateException("system network change is disabled");
+        }
         CommandResult rootCheck = runRequired("id -u", "permission check");
         if (!"0".equals(rootCheck.stdout.trim())) {
             throw new IllegalStateException("network change requires root inside host network namespace");
@@ -93,20 +111,6 @@ public class SystemNetworkChangeService {
         String beforeDefaultRoute = run("ip route show default | head -n 1").stdout.trim();
         result.put("beforeAddresses", beforeAddr);
         result.put("beforeDefaultRoute", beforeDefaultRoute);
-
-        String addCommand = "ip addr add " + sh(cidr) + " dev " + sh(iface);
-        String routeCommand = applyDefaultRoute
-                ? "ip route replace default via " + sh(gateway) + " dev " + sh(iface)
-                : null;
-        result.put("plannedAddCommand", addCommand);
-        if (routeCommand != null) {
-            result.put("plannedRouteCommand", routeCommand);
-        }
-        if (dryRun) {
-            result.put("success", true);
-            result.put("message", "dry run passed");
-            return result;
-        }
 
         boolean alreadyPresent = addressExists(iface, cidr);
         result.put("alreadyPresent", alreadyPresent);

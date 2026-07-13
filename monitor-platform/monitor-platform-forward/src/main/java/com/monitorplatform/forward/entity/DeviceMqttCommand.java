@@ -55,6 +55,8 @@ public class DeviceMqttCommand implements Serializable {
      */
     private String targetDeviceId;
 
+    private String businessId;
+
     /**
      * 命令名称：APPLY_CHAIN_CONFIG / STOP_CHAIN / SET_CHAIN_STATUS 等
      */
@@ -112,6 +114,10 @@ public class DeviceMqttCommand implements Serializable {
      * 错误信息（执行失败或超时时的描述）
      */
     private String errorMessage;
+
+    private String errorCode;
+
+    private String replyPayload;
 
     /**
      * 创建时间

@@ -52,6 +52,9 @@ public class MqttCommandPublishService {
     @Autowired(required = false)
     private MqttRegisterHandler mqttRegisterHandler;
 
+    @Autowired(required = false)
+    private MqttCommandEventService mqttCommandEventService;
+
     private volatile MqttClient mqttClient;
 
     @PostConstruct
@@ -120,6 +123,14 @@ public class MqttCommandPublishService {
                                              String command,
                                              Map<String, Object> payload,
                                              List<MqttCommandMessage.Action> actions) {
+        return publishCommand(gatewayDeviceId, command, payload, actions, null);
+    }
+
+    public DeviceMqttCommand publishCommand(String gatewayDeviceId,
+                                             String command,
+                                             Map<String, Object> payload,
+                                             List<MqttCommandMessage.Action> actions,
+                                             String businessId) {
         if (!hasText(gatewayDeviceId)) {
             log.warn("[MQTT发布] gatewayDeviceId为空，拒绝发布命令 command={}", command);
             return null;
@@ -131,6 +142,7 @@ public class MqttCommandPublishService {
 
         MqttCommandMessage commandMessage = new MqttCommandMessage();
         commandMessage.setCommand(command);
+        commandMessage.setBusinessId(businessId);
         commandMessage.setPayload(payload);
         commandMessage.setActions(actions);
         commandMessage.setQos(properties.getQos());
@@ -155,6 +167,7 @@ public class MqttCommandPublishService {
         record.setSiteId(siteId);
         record.setGatewayDeviceId(gatewayDeviceId);
         record.setTargetDeviceId(gatewayDeviceId);
+        record.setBusinessId(businessId);
         record.setCommand(command);
         record.setMessageType(MqttMessageTypes.PROXY_COMMAND);
         record.setTopic(topic);
@@ -164,12 +177,14 @@ public class MqttCommandPublishService {
         record.setRetryCount(0);
         record.setTimeoutAt(LocalDateTime.now().plusSeconds(properties.getCommandTimeoutSec()));
         deviceMqttCommandMapper.insert(record);
+        recordEvent(record, DeviceMqttCommand.STATUS_CREATED, record);
 
         if (mqttClient == null || !mqttClient.isConnected()) {
             log.warn("[MQTT发布] MQTT客户端未连接，命令仅入库未发送 messageId={}", messageId);
             record.setStatus(DeviceMqttCommand.STATUS_FAILED);
             record.setErrorMessage("MQTT客户端未连接，命令未发送");
             deviceMqttCommandMapper.updateById(record);
+            recordEvent(record, DeviceMqttCommand.STATUS_FAILED, record);
             return null;
         }
 
@@ -181,6 +196,7 @@ public class MqttCommandPublishService {
             record.setStatus(DeviceMqttCommand.STATUS_PUBLISHED);
             record.setPublishedAt(LocalDateTime.now());
             deviceMqttCommandMapper.updateById(record);
+            recordEvent(record, DeviceMqttCommand.STATUS_PUBLISHED, record);
             log.info("[MQTT发布] 命令已发布 messageId={}, topic={}, qos={}", messageId, topic, properties.getQos());
             return record;
         } catch (Exception e) {
@@ -188,6 +204,7 @@ public class MqttCommandPublishService {
             record.setStatus(DeviceMqttCommand.STATUS_FAILED);
             record.setErrorMessage("MQTT发布失败: " + e.getMessage());
             deviceMqttCommandMapper.updateById(record);
+            recordEvent(record, DeviceMqttCommand.STATUS_FAILED, record);
             return null;
         }
     }
@@ -217,6 +234,7 @@ public class MqttCommandPublishService {
             latest.setErrorMessage("等待MQTT回执超时");
             latest.setUpdateTime(LocalDateTime.now());
             deviceMqttCommandMapper.updateById(latest);
+            recordEvent(latest, DeviceMqttCommand.STATUS_TIMEOUT, latest);
         }
         return latest;
     }
@@ -332,5 +350,11 @@ public class MqttCommandPublishService {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private void recordEvent(DeviceMqttCommand command, String status, Object payload) {
+        if (mqttCommandEventService != null) {
+            mqttCommandEventService.record(command, status, payload);
+        }
     }
 }

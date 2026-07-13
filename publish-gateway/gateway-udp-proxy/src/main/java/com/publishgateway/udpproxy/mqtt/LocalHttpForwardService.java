@@ -100,8 +100,9 @@ public class LocalHttpForwardService {
                 result = new HashMap<>();
                 result.put("rawBody", respBody);
             }
+            flattenNestedResultFields(result);
             result.putIfAbsent("httpStatus", response.getStatus());
-            result.putIfAbsent("success", response.isOk());
+            // 不再自动推断 success，由 body 的 success/code 字段决定；空响应体已在上方显式 success=true
             return result;
         } catch (IllegalArgumentException iae) {
             // targetIp 为空，直接抛出，不在此吞掉
@@ -117,9 +118,37 @@ public class LocalHttpForwardService {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private void flattenNestedResultFields(Map<String, Object> result) {
+        if (result == null || result.containsKey("code")) {
+            return;
+        }
+        Object dataObj = result.get("data");
+        if (!(dataObj instanceof Map)) {
+            return;
+        }
+        Map<String, Object> data = (Map<String, Object>) dataObj;
+        Object innerCode = data.get("code");
+        if (innerCode != null) {
+            result.put("code", innerCode);
+        }
+        if (!result.containsKey("msg")) {
+            Object innerMsg = data.get("msg");
+            if (innerMsg != null) {
+                result.put("msg", innerMsg);
+            }
+        }
+        if (!result.containsKey("message")) {
+            Object innerMessage = data.get("message");
+            if (innerMessage != null) {
+                result.put("message", innerMessage);
+            }
+        }
+    }
+
     private void validateForwardTarget(String path, String method) {
-        boolean allowed = allowedPaths.stream()
-                .anyMatch(prefix -> path.startsWith(prefix));
+        boolean allowed = allowedPaths != null && allowedPaths.stream()
+                .anyMatch(prefix -> isAllowedPath(path, prefix));
         if (!allowed) {
             throw new IllegalArgumentException("不允许的 MQTT HTTP 转发路径: " + path);
         }
@@ -127,5 +156,16 @@ public class LocalHttpForwardService {
                 && !"DELETE".equals(method) && !"GET".equals(method)) {
             throw new IllegalArgumentException("不允许的 MQTT HTTP 转发方法: " + method);
         }
+    }
+
+    private boolean isAllowedPath(String path, String configuredPath) {
+        if (configuredPath == null || configuredPath.trim().isEmpty()) {
+            return false;
+        }
+        String prefix = configuredPath.trim();
+        if (prefix.endsWith("/") && prefix.length() > 1) {
+            prefix = prefix.substring(0, prefix.length() - 1);
+        }
+        return path.equals(prefix) || path.startsWith(prefix + "/");
     }
 }

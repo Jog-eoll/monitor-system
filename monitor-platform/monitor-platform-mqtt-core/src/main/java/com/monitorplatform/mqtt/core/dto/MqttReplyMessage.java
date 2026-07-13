@@ -13,6 +13,17 @@ public class MqttReplyMessage implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    public static final String SCHEMA_VERSION = "1.0";
+    public static final String STATUS_SUCCESS = "SUCCESS";
+    public static final String STATUS_FAILED = "FAILED";
+    public static final String STATUS_PROCESSING = "PROCESSING";
+    public static final String STATUS_RECEIVED = "RECEIVED";
+    public static final String STATUS_REJECTED = "REJECTED";
+    public static final String ERROR_EXECUTION_FAILED = "EXECUTION_FAILED";
+    public static final String ERROR_REJECTED = "REJECTED";
+
+    private String schemaVersion = SCHEMA_VERSION;
+
     /** 原始命令的 messageId（用于关联） */
     private String commandMessageId;
 
@@ -21,6 +32,10 @@ public class MqttReplyMessage implements Serializable {
 
     /** 消息描述 */
     private String message;
+
+    private String errorCode;
+
+    private Integer progress;
 
     /** 返回数据（可选） */
     private Map<String, Object> data;
@@ -35,9 +50,10 @@ public class MqttReplyMessage implements Serializable {
         MqttReplyMessage reply = new MqttReplyMessage();
         reply.commandMessageId = commandMessageId;
         reply.gatewayDeviceId = gatewayDeviceId;
-        reply.status = "SUCCESS";
+        reply.status = STATUS_SUCCESS;
         reply.message = "执行成功";
         reply.data = data;
+        reply.progress = 100;
         reply.timestamp = System.currentTimeMillis();
         return reply;
     }
@@ -46,7 +62,8 @@ public class MqttReplyMessage implements Serializable {
         MqttReplyMessage reply = new MqttReplyMessage();
         reply.commandMessageId = commandMessageId;
         reply.gatewayDeviceId = gatewayDeviceId;
-        reply.status = "FAILED";
+        reply.status = STATUS_FAILED;
+        reply.errorCode = ERROR_EXECUTION_FAILED;
         reply.message = errorMsg;
         reply.timestamp = System.currentTimeMillis();
         return reply;
@@ -56,7 +73,7 @@ public class MqttReplyMessage implements Serializable {
         MqttReplyMessage reply = new MqttReplyMessage();
         reply.commandMessageId = commandMessageId;
         reply.gatewayDeviceId = gatewayDeviceId;
-        reply.status = "PROCESSING";
+        reply.status = STATUS_PROCESSING;
         reply.message = "命令已接收，正在执行";
         reply.timestamp = System.currentTimeMillis();
         return reply;
@@ -66,7 +83,8 @@ public class MqttReplyMessage implements Serializable {
         MqttReplyMessage reply = new MqttReplyMessage();
         reply.commandMessageId = commandMessageId;
         reply.gatewayDeviceId = gatewayDeviceId;
-        reply.status = "REJECTED";
+        reply.status = STATUS_REJECTED;
+        reply.errorCode = ERROR_REJECTED;
         reply.message = reason;
         reply.timestamp = System.currentTimeMillis();
         return reply;

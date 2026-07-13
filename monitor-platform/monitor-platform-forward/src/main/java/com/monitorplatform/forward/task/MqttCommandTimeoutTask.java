@@ -3,6 +3,7 @@ package com.monitorplatform.forward.task;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.monitorplatform.forward.entity.DeviceMqttCommand;
 import com.monitorplatform.forward.mapper.DeviceMqttCommandMapper;
+import com.monitorplatform.forward.service.MqttCommandEventService;
 import com.monitorplatform.upgrade.service.RemoteUpgradeReplyService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +30,9 @@ public class MqttCommandTimeoutTask {
 
     @Autowired(required = false)
     private RemoteUpgradeReplyService remoteUpgradeReplyService;
+
+    @Autowired(required = false)
+    private MqttCommandEventService mqttCommandEventService;
 
     /**
      * 需要检查超时的命令状态列表
@@ -70,6 +74,7 @@ public class MqttCommandTimeoutTask {
                     command.setAckTime(now);
                     command.setUpdateTime(now);
                     deviceMqttCommandMapper.updateById(command);
+                    recordEvent(command, DeviceMqttCommand.STATUS_TIMEOUT);
                     if (remoteUpgradeReplyService != null) {
                         remoteUpgradeReplyService.handleTimeout(command);
                     }
@@ -90,6 +95,12 @@ public class MqttCommandTimeoutTask {
 
         } catch (Exception e) {
             log.error("[MQTT超时扫描] 超时扫描任务执行失败", e);
+        }
+    }
+
+    private void recordEvent(DeviceMqttCommand command, String status) {
+        if (mqttCommandEventService != null) {
+            mqttCommandEventService.record(command, status, command);
         }
     }
 }

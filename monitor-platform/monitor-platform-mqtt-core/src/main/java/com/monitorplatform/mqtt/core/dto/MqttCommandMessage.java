@@ -18,6 +18,15 @@ public class MqttCommandMessage implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    public static final String SCHEMA_VERSION = "1.0";
+    public static final String COMMAND_QUERY_STATUS = "QUERY_STATUS";
+    public static final String COMMAND_NOOP = "NOOP";
+    public static final String COMMAND_ECHO = "ECHO";
+
+    private String schemaVersion = SCHEMA_VERSION;
+
+    private String businessId;
+
     /** 命令名称（枚举）：APPLY_CHAIN_CONFIG / STOP_CHAIN / SET_CHAIN_STATUS / ... */
     private String command;
 
