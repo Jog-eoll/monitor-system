@@ -45,7 +45,7 @@ minio:
   endpoint: http://${MINIO_HOST:127.0.0.1}:${MINIO_PORT:9000}
   access-key: ${MINIO_ACCESS_KEY}
   secret-key: ${MINIO_SECRET_KEY}
-  bucket-name: ${MINIO_BUCKET:monitor-content}
+  bucket-name: ${MINIO_BUCKET:${MINIO_BUCKET_NAME:monitor-content}}
   fallback-to-base64: true
 
 # VAuth 国密加解密配置

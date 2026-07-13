@@ -703,6 +703,7 @@ CREATE TABLE `t_content_monitor` (
   `keywords` varchar(500) DEFAULT NULL COMMENT '命中的敏感词',
   `reason` varchar(500) DEFAULT NULL COMMENT 'AI判定依据',
   `request_id` varchar(100) DEFAULT NULL COMMENT '阿里云请求追踪ID',
+  `publish_request_id` varchar(100) DEFAULT NULL COMMENT '发布请求追踪ID',
   `error_message` varchar(500) DEFAULT NULL COMMENT '检测失败错误信息',
   `receive_time` datetime DEFAULT NULL COMMENT '接收时间',
   `recognition_time` datetime DEFAULT NULL COMMENT 'AI识别时间',
@@ -724,7 +725,8 @@ CREATE TABLE `t_content_monitor` (
   KEY `idx_create_time` (`create_time`),
   KEY `idx_minio_path` (`minio_path`),
   KEY `idx_board_ip_port` (`board_ip`,`board_port`),
-  KEY `idx_play_batch` (`play_batch_id`,`play_batch_seq`)
+  KEY `idx_play_batch` (`play_batch_id`,`play_batch_seq`),
+  KEY `idx_content_publish_request_id` (`publish_request_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=202102 DEFAULT CHARSET=utf8mb4 COMMENT='内容监看表（管控平台-发布网关）';
 /*!40101 SET character_set_client = @saved_cs_client */;
 

@@ -41,7 +41,7 @@ forward:
     qos: 1
     auth-enabled: ${MQTT_AUTH_ENABLED:true}
     device-default-password: ${MQTT_DEVICE_DEFAULT_PASSWORD:}
-    allow-empty-device-password: ${MQTT_ALLOW_EMPTY_DEVICE_PASSWORD:true}
+    allow-empty-device-password: ${MQTT_ALLOW_EMPTY_DEVICE_PASSWORD:false}
     platform-client-prefix: ${MQTT_PLATFORM_CLIENT_PREFIX:monitor-platform,platform,server}
     timeout-scan-interval-ms: 30000
 

@@ -168,6 +168,46 @@ CREATE TABLE IF NOT EXISTS `device_mqtt_command` (
         ]]></sql>
     </changeSet>
 
+    <changeSet id="forward-007-add-mqtt-command-reply-fields" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <and>
+                <tableExists tableName="device_mqtt_command"/>
+                <not>
+                    <columnExists tableName="device_mqtt_command" columnName="business_id"/>
+                </not>
+            </and>
+        </preConditions>
+        <addColumn tableName="device_mqtt_command">
+            <column name="business_id" type="VARCHAR(128)" remarks="business id"/>
+            <column name="error_code" type="VARCHAR(64)" remarks="error code"/>
+            <column name="reply_payload" type="TEXT" remarks="reply payload json"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="forward-008-create-device-mqtt-command-event" author="system">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <not>
+                <tableExists tableName="device_mqtt_command_event"/>
+            </not>
+        </preConditions>
+        <createTable tableName="device_mqtt_command_event" remarks="MQTT command event table">
+            <column name="id" type="BIGINT" autoIncrement="true" remarks="id">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="command_message_id" type="VARCHAR(64)" remarks="command message id">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(32)" remarks="status">
+                <constraints nullable="false"/>
+            </column>
+            <column name="event_payload" type="TEXT" remarks="event payload json"/>
+            <column name="event_time" type="DATETIME" defaultValueComputed="CURRENT_TIMESTAMP" remarks="event time"/>
+        </createTable>
+        <createIndex tableName="device_mqtt_command_event" indexName="idx_dmce_message_id">
+            <column name="command_message_id"/>
+        </createIndex>
+    </changeSet>
+
     <include file="db/changelog/changes/upgrade-001-create-remote-upgrade-tables.xml"/>
 
 </databaseChangeLog>

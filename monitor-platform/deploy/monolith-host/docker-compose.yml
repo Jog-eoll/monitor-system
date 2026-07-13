@@ -24,7 +24,7 @@ services:
       - MINIO_ENDPOINT=${MINIO_ENDPOINT:-http://127.0.0.1:9000}
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
-      - MINIO_BUCKET=${MINIO_BUCKET:-monitor-platform}
+      - MINIO_BUCKET=${MINIO_BUCKET:-monitor-content}
       - AUDIT_MODE=${AUDIT_MODE:-local}
       - LOCAL_AUDIT_IMAGE_URL=${LOCAL_AUDIT_IMAGE_URL:-http://127.0.0.1:21580/api/audit/image/quick}
       - LOCAL_AUDIT_TEXT_URL=${LOCAL_AUDIT_TEXT_URL:-http://127.0.0.1:21580/api/audit/text}

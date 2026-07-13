@@ -21,6 +21,7 @@
     <include file="db/changelog/changes/content-001-create-content-detection-task-table.xml"/>
     <include file="db/changelog/changes/content-002-alter-content-monitor-table.xml"/>
     <include file="db/changelog/changes/content-002-add-play-batch-fields.xml"/>
+    <include file="db/changelog/changes/content-003-add-publish-request-id.xml"/>
 
     <!-- ==================== Forward 模块 ==================== -->
     <include file="db/changelog/changes/forward-001-create-task-chain-config-table.xml"/>
