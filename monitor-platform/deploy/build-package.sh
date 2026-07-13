@@ -235,6 +235,7 @@ bash ctl.sh status    # 查看服务状态
 bash ctl.sh logs      # 查看日志
 bash ctl.sh health    # 健康概览
 bash ctl.sh report    # 生成报告
+bash ctl.sh update-images /tmp/monitor-platform-v${VERSION}.tar.gz  # 更新业务镜像
 \`\`\`
 
 ## 版本: ${VERSION}

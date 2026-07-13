@@ -44,6 +44,8 @@ Commands:
   stop            Stop all services
   health          Quick health overview
   report          Generate a deployment report
+  update-images <path>
+                  Load a new image package and recreate changed monitor-* services
   rollback        Show recent image tags for rollback
   help            Show this help
 USAGE
@@ -112,6 +114,28 @@ cmd_report() {
   echo "Report saved: $rf"
 }
 
+cmd_update_images() {
+  local package_path="${1:-}"
+  [[ -n "$package_path" ]] || {
+    echo "ERROR: update-images requires a package path" >&2
+    exit 1
+  }
+  [[ -e "$package_path" ]] || {
+    echo "ERROR: image package path does not exist: $package_path" >&2
+    exit 1
+  }
+  [[ -f "$DEPLOY_DIR/stage2/install.sh" ]] || {
+    echo "ERROR: stage2 installer not found: $DEPLOY_DIR/stage2/install.sh" >&2
+    exit 1
+  }
+
+  local config_args=()
+  if [[ -f "$DEPLOY_DIR/deploy.conf" ]]; then
+    config_args=(--config "$DEPLOY_DIR/deploy.conf")
+  fi
+  bash "$DEPLOY_DIR/stage2/install.sh" "${config_args[@]}" --update-images "$package_path" --yes
+}
+
 cmd_rollback() {
   echo "Recent images (use docker tag to rollback):"
   docker images --format 'table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}' | head -30
@@ -126,6 +150,7 @@ case "${1:-help}" in
   stop)         cmd_stop ;;
   health)       cmd_health ;;
   report)       cmd_report ;;
+  update-images) shift; cmd_update_images "$@" ;;
   rollback)     cmd_rollback ;;
   help|-h|--help) usage ;;
   *)            echo "Unknown command: $1" >&2; usage; exit 1 ;;

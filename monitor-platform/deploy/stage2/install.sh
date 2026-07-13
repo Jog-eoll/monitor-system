@@ -11,6 +11,7 @@ DRY_RUN=false
 CHECK_ONLY=false
 NON_INTERACTIVE=false
 REPORT_ONLY=false
+UPDATE_IMAGES_PATH=""
 CURRENT_STAGE="initializing"
 REPORT_WRITTEN=false
 
@@ -35,6 +36,7 @@ usage() {
   cat <<'USAGE'
 Usage:
   bash stage2/install.sh [--config FILE] [--check] [--dry-run] [--yes] [--report]
+  bash stage2/install.sh [--config FILE] --update-images PATH [--yes]
 
 Options:
   --config FILE          Use a deploy.conf-compatible config file.
@@ -44,6 +46,9 @@ Options:
   --auto-install-docker  Allow automatic Docker installation when missing.
   --no-auto-firewall     Do not open firewall ports automatically.
   --report               Generate a deployment report without starting containers.
+  --update-images PATH   Load a new image package and recreate changed monitor-* services.
+                         PATH may be a docker image archive, a directory containing archives,
+                         or a full one-click package archive/directory with package/images.
   --init-config          Top-level install.sh option: generate deploy.conf from stage2/deploy.conf.example.
   --legacy               Top-level install.sh option: run the old deployment script.
 USAGE
@@ -75,6 +80,11 @@ parse_args() {
       --report)
         REPORT_ONLY=true
         ;;
+      --update-images)
+        [[ $# -ge 2 ]] || fail "--update-images requires a value"
+        UPDATE_IMAGES_PATH="$2"
+        shift
+        ;;
       -h|--help)
         usage
         exit 0
@@ -85,6 +95,19 @@ parse_args() {
     esac
     shift
   done
+}
+
+run_update_images() {
+  [[ -n "$UPDATE_IMAGES_PATH" ]] || fail "missing --update-images PATH"
+  log_info "updating monitor-platform images from: $UPDATE_IMAGES_PATH"
+  update_image_archives "$UPDATE_IMAGES_PATH"
+
+  if (( ${#UPDATED_MONITOR_SERVICES[@]} > 0 )); then
+    check_actuator_health
+    check_nacos_registrations
+  fi
+
+  write_ctl_script "$DEPLOY_DIR"
 }
 
 write_report_once() {
@@ -117,10 +140,26 @@ main() {
   fi
   CURRENT_STAGE="validate config"
   validate_stage2_config
+  if [[ -n "$UPDATE_IMAGES_PATH" ]]; then
+    AUTO_OPEN_FIREWALL=false
+  fi
   CURRENT_STAGE="check OS resources"
   check_os_resources
   CURRENT_STAGE="check Docker Compose"
   check_docker_compose
+
+  if [[ -n "$UPDATE_IMAGES_PATH" ]]; then
+    CURRENT_STAGE="render env"
+    write_stage2_env
+    CURRENT_STAGE="validate compose"
+    validate_compose
+    CURRENT_STAGE="update images"
+    run_update_images
+    write_report_once "updated" "$CURRENT_STAGE"
+    log_success "stage2 image update completed"
+    exit 0
+  fi
+
   CURRENT_STAGE="resolve port conflicts"
   resolve_port_conflicts
   CURRENT_STAGE="check firewall ports"

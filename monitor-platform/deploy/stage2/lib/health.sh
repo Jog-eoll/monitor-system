@@ -88,7 +88,7 @@ check_infra_health() {
   wait_http_ok "Nacos HTTP" "http://127.0.0.1:${NACOS_HOST_PORT}/nacos"
   wait_http_ok "MinIO HTTP" "http://127.0.0.1:${MINIO_API_PORT}/minio/health/live"
   wait_http_ok "EMQX Dashboard" "http://127.0.0.1:${EMQX_DASHBOARD_PORT}"
-  if [[ "${DISPATCH_MODE:-http}" == "mqtt" || "${DISPATCH_MODE:-http}" == "dual" ]]; then
+  if [[ "${DISPATCH_MODE:-mqtt}" == "mqtt" || "${DISPATCH_MODE:-mqtt}" == "dual" ]]; then
     wait_http_ok "EMQX MQTT port" "http://127.0.0.1:${EMQX_MQTT_PORT}" 5 3 || log_warn "EMQX MQTT port ${EMQX_MQTT_PORT} not reachable (TCP check skipped for HTTP probe)"
   fi
   check_mysql_connection

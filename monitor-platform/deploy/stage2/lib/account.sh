@@ -37,6 +37,7 @@ auto_generate_passwords() {
     REDIS_PASSWORD
     MINIO_ROOT_PASSWORD MINIO_SECRET_KEY
     UKEY_ADMIN_PASSWORD
+    EMQX_DASHBOARD_PASSWORD MQTT_DEVICE_DEFAULT_PASSWORD
   )
   local v
   for v in "${vars[@]}"; do
@@ -85,6 +86,7 @@ write_account_file() {
   MinIO root:          ${MINIO_ROOT_PASSWORD}
   MinIO app key:       ${MINIO_ACCESS_KEY}
   MinIO app secret:    ${MINIO_SECRET_KEY}
+  EMQX dashboard:      ${EMQX_DASHBOARD_PASSWORD}
 
 [管理账户]
   UKey 管理员:         ${UKEY_ADMIN_USERNAME} / ${UKEY_ADMIN_PASSWORD}
@@ -93,6 +95,7 @@ write_account_file() {
 [MQTT 配置]
   DISPATCH_MODE:       ${DISPATCH_MODE}
   Broker URL:          ${MQTT_BROKER_URL}
+  Device password:     ${MQTT_DEVICE_DEFAULT_PASSWORD}
   EMQX MQTT:           ${server_ip}:${EMQX_MQTT_PORT}
   EMQX MQTTS:          ${server_ip}:${EMQX_MQTTS_PORT}
 

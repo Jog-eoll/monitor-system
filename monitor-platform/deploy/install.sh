@@ -33,7 +33,7 @@ else
             shift
             exec bash "$SCRIPT_DIR/stage2/install.sh" "$@"
             ;;
-        ""|--check|--dry-run|--yes|--auto-install-docker|--no-auto-firewall|--report|--config|-h|--help)
+        ""|--check|--dry-run|--yes|--auto-install-docker|--no-auto-firewall|--report|--update-images|--config|-h|--help)
             exec bash "$SCRIPT_DIR/stage2/install.sh" "$@"
             ;;
         *)
@@ -88,7 +88,7 @@ DEFAULT_SENTINEL_PORT="8858"
 DEFAULT_MINIO_ENDPOINT="http://minio:9000"
 DEFAULT_MINIO_ACCESS_KEY="admin"
 DEFAULT_MINIO_SECRET_KEY=""  # 必须通过环境变量 MINIO_SECRET_KEY 或 deploy.conf 配置
-DEFAULT_MINIO_BUCKET="monitor-platform"
+DEFAULT_MINIO_BUCKET="monitor-content"
 DEFAULT_CONTENT_MYSQL_IP_PORT="127.0.0.1:23306"
 DEFAULT_CONTENT_REDIS_HOST="127.0.0.1"
 DEFAULT_CONTENT_REDIS_PORT="26379"
@@ -108,7 +108,7 @@ DEFAULT_LOCAL_AUDIT_AUTH_PASSWORD=""
 DEFAULT_LOCAL_AUDIT_AUTH_CERT_PATH=""
 DEFAULT_LOCAL_AUDIT_AUTH_TOKEN=""
 DEFAULT_MYSQL_ROOT_PASSWORD=""  # 必须通过 deploy.conf 配置，留空则等于 MYSQL_PASSWORD
-DEFAULT_DISPATCH_MODE="http"
+DEFAULT_DISPATCH_MODE="mqtt"
 DEFAULT_MQTT_BROKER_URL="ssl://127.0.0.1:8883"
 DEFAULT_MQTT_USERNAME=""
 DEFAULT_MQTT_PASSWORD=""
@@ -334,7 +334,7 @@ MINIO_ROOT_USER=YOUR_MINIO_ROOT_USER_HERE
 MINIO_ROOT_PASSWORD=YOUR_MINIO_ROOT_PASSWORD_HERE
 MINIO_ACCESS_KEY=YOUR_MINIO_ACCESS_KEY_HERE
 MINIO_SECRET_KEY=YOUR_MINIO_SECRET_KEY_HERE
-MINIO_BUCKET=monitor-platform
+MINIO_BUCKET=monitor-content
 
 # monitor-content uses host network, so it must access local services through host ports.
 CONTENT_MYSQL_IP_PORT=127.0.0.1:23306
@@ -347,8 +347,8 @@ CONTENT_MONITOR_ALARM_URL=http://127.0.0.1:8064
 CONTENT_MONITOR_DEVICE_URL=http://127.0.0.1:8062
 CONTENT_MONITOR_FORWARD_URL=http://127.0.0.1:8067
 
-# MQTT 下发配置（默认保持 HTTP；公网 Broker 和网关 Agent 准备好后改为 mqtt 或 dual）
-DISPATCH_MODE=http
+# MQTT 下发配置（mqtt 为标准主链路；仅运维人工降级时改为 http）
+DISPATCH_MODE=mqtt
 MQTT_BROKER_URL=ssl://127.0.0.1:8883
 MQTT_USERNAME=
 MQTT_PASSWORD=
@@ -755,7 +755,7 @@ minio:
   endpoint: http://${MINIO_HOST:127.0.0.1}:${MINIO_PORT:9003}
   access-key: ${MINIO_ACCESS_KEY}
   secret-key: ${MINIO_SECRET_KEY}
-  bucket-name: ${MINIO_BUCKET:monitor-content}
+  bucket-name: ${MINIO_BUCKET:${MINIO_BUCKET_NAME:monitor-content}}
   fallback-to-base64: true
 vauth:
   device-type: ${VAUTH_DEVICE_TYPE:ukey}

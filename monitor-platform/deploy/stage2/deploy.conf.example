@@ -5,6 +5,7 @@
 MIN_CPU_CORES=4
 MIN_MEMORY_MB=8192
 MIN_DISK_GB=50
+SPRING_PROFILES_ACTIVE=dev
 
 # Container-internal dependency addresses. Do not change for stage2 single-node.
 MYSQL_HOST=db
@@ -27,13 +28,15 @@ MINIO_ROOT_USER=monitor_minio_root
 MINIO_ROOT_PASSWORD=Replace_Minio_Root_2026!
 MINIO_ACCESS_KEY=monitor_minio_app
 MINIO_SECRET_KEY=Replace_Minio_App_2026!
-MINIO_BUCKET=monitor-platform
+MINIO_BUCKET=monitor-content
 
 SENTINEL_HOST=127.0.0.1
 SENTINEL_PORT=8858
 
-# MQTT downlink. Keep http until EMQX and gateway agents are ready.
-DISPATCH_MODE=http
+EMQX_DASHBOARD_PASSWORD=Replace_Emqx_Dashboard_2026!
+
+# MQTT downlink. mqtt is the standard primary path; set http only for manual operational downgrade.
+DISPATCH_MODE=mqtt
 MQTT_BROKER_URL=ssl://127.0.0.1:8883
 MQTT_USERNAME=
 MQTT_PASSWORD=
@@ -41,6 +44,10 @@ MQTT_TENANT_ID=default
 MQTT_SITE_ID=site-001
 MQTT_PLATFORM_CLIENT_ID=monitor-platform-001
 MQTT_RECONNECT_INTERVAL_MS=30000
+MQTT_AUTH_ENABLED=true
+MQTT_DEVICE_DEFAULT_PASSWORD=Replace_Device_Mqtt_2026!
+MQTT_ALLOW_EMPTY_DEVICE_PASSWORD=false
+MQTT_PLATFORM_CLIENT_PREFIX=monitor-platform,platform,server
 
 # Remote upgrade package download base URL.
 # Devices in private LAN must be able to access this public platform root URL.
@@ -74,6 +81,7 @@ EMQX_DASHBOARD_PORT=18083
 
 UKEY_ADMIN_USERNAME=monitor_ukey
 UKEY_ADMIN_PASSWORD=Replace_Ukey_Admin_2026!
+UKEY_PASSWORD_ENCRYPT_KEY=Replace_Ukey_Encrypt_Key_Base64_2026!
 
 # deferred: allow deployment without onsite UKey/SDK, then configure UKey later.
 # required: formal UKey mode; sdk/lib/libvauthsdk.so, PIN and AuthId must be ready.
@@ -97,7 +105,12 @@ LOCAL_AUDIT_AUTH_PASSWORD=
 LOCAL_AUDIT_AUTH_CERT_PATH=
 LOCAL_AUDIT_AUTH_TOKEN=
 
+ALARM_AUTO_BLACK_SCREEN_ENABLED=true
 LOG_REPORT_TOKEN=
+LOG_RETENTION_DAYS=90
+LOG_DEDUP_WINDOW_SECONDS=60
+LOG_TIMELINE_DEFAULT_DAYS=7
+LOG_CLEANUP_CRON='0 30 2 * * ?'
 PULL_PUBLIC_IMAGES=true
 AUTO_OPEN_FIREWALL=true
 AUTO_INSTALL_DOCKER=false

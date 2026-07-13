@@ -11,12 +11,14 @@ bash install.sh --check
 bash install.sh --dry-run
 bash install.sh
 bash install.sh --report
+bash ctl.sh update-images /path/to/new-image-package.tar.gz
 ```
 
 You can also call the module directly:
 
 ```bash
 bash stage2/install.sh --config ./deploy.conf --check
+bash stage2/install.sh --config ./deploy.conf --update-images /path/to/images
 ```
 
 ## Config
@@ -31,8 +33,29 @@ Do not reuse the stage 1 `deploy.env.example` directly. In stage 2:
 - `sdk/lib/libvauthsdk.so` is always required because `monitor-ukey` loads the SDK during startup.
 - `UKEY_SETUP_MODE=deferred` allows base deployment when onsite UKey, PIN and AuthId are not ready yet.
 - `UKEY_SETUP_MODE=required` requires `VAUTH_SERVER_PASSWORD` and `VAUTH_SERVER_AUTH_ID`.
-- `DISPATCH_MODE=http` keeps the existing HTTP gateway dispatch path. Change it to `mqtt` or `dual` only after EMQX and gateway `MQTT_AGENT_ENABLED=true` are ready.
+- `DISPATCH_MODE=mqtt` is the standard primary dispatch path. Set `DISPATCH_MODE=http` only for manual operational downgrade.
 - `MQTT_BROKER_URL`, `MQTT_USERNAME`, `MQTT_PASSWORD`, `MQTT_TENANT_ID`, `MQTT_SITE_ID` and `MQTT_PLATFORM_CLIENT_ID` are rendered into `monitor-forward`.
+- `EMQX_DASHBOARD_PASSWORD`, `MQTT_DEVICE_DEFAULT_PASSWORD` and `UKEY_PASSWORD_ENCRYPT_KEY` must be replaced for production acceptance.
+- `ALARM_AUTO_BLACK_SCREEN_ENABLED`, `LOG_TIMELINE_DEFAULT_DAYS`, `LOG_CLEANUP_CRON`, `MQTT_AUTH_ENABLED` and `MQTT_PLATFORM_CLIENT_PREFIX` are rendered explicitly so runtime behavior does not depend on source defaults.
+
+## Image Updates
+
+After the first successful deployment, use one of these commands to update a version by image package:
+
+```bash
+bash ctl.sh update-images /tmp/monitor-platform-v1.1.0.tar.gz
+bash stage2/install.sh --config ./deploy.conf --update-images /tmp/images --yes
+```
+
+The update path accepts:
+
+- A Docker image archive created by `docker save`.
+- A directory containing `.tar`, `.tar.gz` or `.tgz` image archives.
+- A full one-click package archive or extracted package that contains `package/images`.
+
+The script records pre-update private image IDs under `backups/image-updates/`, loads the new archives, detects which `monitor-platform-*` images changed, and recreates only the affected `monitor-*` services with `docker compose up -d --no-deps --force-recreate`.
+
+The image update flow does not apply database schema changes or restart infra images such as MySQL, Redis, Nacos, MinIO, Nginx or EMQX. Apply required SQL/Liquibase changes before updating images when the version changes schema.
 
 ## Checks
 

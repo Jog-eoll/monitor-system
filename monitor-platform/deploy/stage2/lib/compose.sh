@@ -24,12 +24,27 @@ private_images=(
   "monitor-platform-log:latest"
 )
 
+private_image_services=(
+  "monitor-platform-device:latest monitor-device"
+  "monitor-platform-ukey:latest monitor-ukey"
+  "monitor-platform-alarm:latest monitor-alarm"
+  "monitor-platform-rule:latest monitor-rule"
+  "monitor-platform-content:latest monitor-content"
+  "monitor-platform-forward:latest monitor-forward"
+  "monitor-platform-role:latest monitor-role"
+  "monitor-platform-registry-server:latest monitor-registry-server"
+  "monitor-platform-gateway:latest monitor-gateway"
+  "monitor-platform-websocket:latest monitor-websocket"
+  "monitor-platform-log:latest monitor-log"
+)
+
 infra_services=(db redis minio nacos emqx)
 business_services=(
   monitor-device monitor-ukey monitor-rule monitor-websocket monitor-log
   monitor-forward monitor-role monitor-registry-server monitor-content monitor-alarm
 )
 edge_services=(monitor-gateway nginx)
+UPDATED_MONITOR_SERVICES=()
 
 compose_cmd() {
   (cd "$DEPLOY_DIR" && "${DOCKER_COMPOSE[@]}" -f "$COMPOSE_FILE" "$@")
@@ -158,6 +173,133 @@ load_image_archives() {
   done
   shopt -u nullglob
   [[ "$loaded" == "true" ]] || log_info "no image archive found under tar/ or images/"
+}
+
+image_id() {
+  docker image inspect -f '{{.Id}}' "$1" 2>/dev/null || true
+}
+
+backup_monitor_image_ids() {
+  local backup_dir="$DEPLOY_DIR/backups/image-updates/$(date +%Y%m%d-%H%M%S)"
+  local manifest="$backup_dir/image-ids-before.txt"
+  local image
+  mkdir -p "$backup_dir"
+  for image in "${private_images[@]}"; do
+    printf '%s %s\n' "$image" "$(image_id "$image")" >> "$manifest"
+  done
+  log_info "pre-update image manifest saved: $manifest" >&2
+  printf '%s\n' "$manifest"
+}
+
+archive_listing_has_path() {
+  local archive="$1"
+  local pattern="$2"
+  tar -tf "$archive" 2>/dev/null | grep -Eq "$pattern"
+}
+
+collect_image_archives_from_dir() {
+  local root="$1"
+  local file
+  while IFS= read -r file; do
+    if archive_listing_has_path "$file" '^manifest\.json$'; then
+      printf '%s\n' "$file"
+    fi
+  done < <(find "$root" -type f \( -name '*.tar' -o -name '*.tar.gz' -o -name '*.tgz' \) | sort)
+}
+
+extract_image_package_if_needed() {
+  local source_path="$1"
+  local work_dir="$2"
+
+  if [[ -d "$source_path" ]]; then
+    printf '%s\n' "$source_path"
+    return
+  fi
+
+  [[ -f "$source_path" ]] || fail "image update package not found: $source_path"
+
+  if archive_listing_has_path "$source_path" '^manifest\.json$'; then
+    printf '%s\n' "$source_path"
+    return
+  fi
+
+  if archive_listing_has_path "$source_path" '(^|/)package/(images|tar)/[^/]+\.(tar|tar\.gz|tgz)$|(^|/)(images|tar)/[^/]+\.(tar|tar\.gz|tgz)$'; then
+    mkdir -p "$work_dir"
+    tar -xf "$source_path" -C "$work_dir"
+    printf '%s\n' "$work_dir"
+    return
+  fi
+
+  # Last resort: let docker load report whether this is a valid image archive.
+  printf '%s\n' "$source_path"
+}
+
+resolve_update_image_archives() {
+  local source_path="$1"
+  local work_dir="$2"
+  local resolved
+  resolved="$(extract_image_package_if_needed "$source_path" "$work_dir")"
+
+  if [[ -d "$resolved" ]]; then
+    collect_image_archives_from_dir "$resolved"
+  else
+    printf '%s\n' "$resolved"
+  fi
+}
+
+detect_loaded_monitor_services() {
+  local before_manifest="$1"
+  local pair image service before after
+  UPDATED_MONITOR_SERVICES=()
+
+  for pair in "${private_image_services[@]}"; do
+    image="${pair%% *}"
+    service="${pair#* }"
+    before="$(awk -v img="$image" '$1 == img {print $2}' "$before_manifest" 2>/dev/null || true)"
+    after="$(image_id "$image")"
+    if [[ -n "$after" && "$before" != "$after" ]]; then
+      UPDATED_MONITOR_SERVICES+=("$service")
+      log_info "image changed: $image -> service $service"
+    fi
+  done
+}
+
+update_image_archives() {
+  local source_path="$1"
+  local update_root="$DEPLOY_DIR/update-packages"
+  local work_dir="$update_root/extracted-$(date +%Y%m%d-%H%M%S)"
+  local manifest archive loaded=false
+  local archives=()
+
+  [[ -n "$source_path" ]] || fail "missing image update package path"
+  [[ -e "$source_path" ]] || fail "image update package path does not exist: $source_path"
+
+  mapfile -t archives < <(resolve_update_image_archives "$source_path" "$work_dir")
+  (( ${#archives[@]} > 0 )) || fail "no image archive found in update package: $source_path"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log_info "dry-run: image archives that would be loaded:"
+    printf '  %s\n' "${archives[@]}"
+    return
+  fi
+
+  manifest="$(backup_monitor_image_ids)"
+  for archive in "${archives[@]}"; do
+    [[ -f "$archive" ]] || continue
+    loaded=true
+    log_info "loading update image archive: $archive"
+    docker load -i "$archive"
+  done
+  [[ "$loaded" == "true" ]] || fail "no readable image archive found in update package: $source_path"
+
+  detect_loaded_monitor_services "$manifest"
+  if (( ${#UPDATED_MONITOR_SERVICES[@]} == 0 )); then
+    log_warn "no monitor-platform service image changed after loading package"
+    return
+  fi
+
+  log_info "recreating updated services: ${UPDATED_MONITOR_SERVICES[*]}"
+  compose_cmd up -d --no-deps --force-recreate "${UPDATED_MONITOR_SERVICES[@]}"
 }
 
 image_exists() {
