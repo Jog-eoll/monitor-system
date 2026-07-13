@@ -502,12 +502,22 @@ public class VAuthAuthServerService {
             return -1;
         }
 
+        if (hasConfiguredServerAuthId() && !matchesAuthId(serverAuthId, selectedDevice.cerId)) {
+            log.warn("[VAuthServer] 服务端 UKey 绑定与 authId 不一致，拒绝打开: authId={}, selectedCerId={}, selectedPath={}",
+                    serverAuthId, selectedDevice.cerId, selectedDevice.path);
+            return -1;
+        }
+
         String effectiveAuthId = resolveEffectiveServerAuthId(selectedDevice);
         if (!hasText(effectiveAuthId)) {
             log.warn("[VAuthServer] 无法解析服务端认证 ID，请配置 VAUTH_SERVER_AUTH_ID 或确认 UKey cerId 有效");
             return -1;
         }
 
+        if (hasText(serverUkeyPath) && !equalsIgnoreCase(serverUkeyPath, selectedDevice.path)) {
+            log.warn("[VAuthServer] 配置的 UKey path 已不是当前实际 path，已按稳定标识重新匹配: configuredPath={}, actualPath={}, cerId={}",
+                    serverUkeyPath, selectedDevice.path, selectedDevice.cerId);
+        }
         log.info("[VAuthServer] 绑定服务端 UKey: name={}, label={}, sn={}, cerSn={}, cerId={}, path={}, authId={}",
                 selectedDevice.name, selectedDevice.label, selectedDevice.sn, selectedDevice.cerSn,
                 selectedDevice.cerId, selectedDevice.path, effectiveAuthId);
@@ -536,8 +546,28 @@ public class VAuthAuthServerService {
             return null;
         }
 
+        if (hasText(serverUkeyCerId)) {
+            return uniqueOrWarn(filterByField(devices, "cerId", serverUkeyCerId), "cerId=" + serverUkeyCerId);
+        }
+        if (hasText(serverUkeyCerSn)) {
+            return uniqueOrWarn(filterByField(devices, "cerSn", serverUkeyCerSn), "cerSn=" + serverUkeyCerSn);
+        }
+        if (hasText(serverUkeySn)) {
+            return uniqueOrWarn(filterByField(devices, "sn", serverUkeySn), "sn=" + serverUkeySn);
+        }
+        if (hasConfiguredServerAuthId()) {
+            log.info("[VAuthServer] 使用 authId 匹配服务端 UKey: authId={}", serverAuthId);
+            List<UkeyDeviceInfo> matches = new ArrayList<>();
+            for (UkeyDeviceInfo device : devices) {
+                if (matchesAuthId(serverAuthId, device.cerId)) {
+                    matches.add(device);
+                }
+            }
+            return uniqueOrWarn(matches, "authId=" + serverAuthId);
+        }
+
         if (hasText(serverUkeyPath)) {
-            log.info("[VAuthServer] 使用 path 精确绑定服务端 UKey: {}", serverUkeyPath);
+            log.info("[VAuthServer] 未配置稳定 UKey 标识，使用 path 作为兼容兜底: {}", serverUkeyPath);
             List<UkeyDeviceInfo> matches = new ArrayList<>();
             for (UkeyDeviceInfo device : devices) {
                 if (equalsIgnoreCase(serverUkeyPath, device.path)) {
@@ -612,6 +642,28 @@ public class VAuthAuthServerService {
             log.warn("[VAuthServer] 解析 UKey 列表失败: {}", e.getMessage());
         }
         return devices;
+    }
+
+    private List<UkeyDeviceInfo> filterByField(List<UkeyDeviceInfo> devices, String field, String expected) {
+        List<UkeyDeviceInfo> matches = new ArrayList<>();
+        for (UkeyDeviceInfo device : devices) {
+            String actual;
+            if ("cerId".equals(field)) {
+                actual = device.cerId;
+            } else if ("cerSn".equals(field)) {
+                actual = device.cerSn;
+            } else if ("sn".equals(field)) {
+                actual = device.sn;
+            } else if ("path".equals(field)) {
+                actual = device.path;
+            } else {
+                actual = null;
+            }
+            if (equalsIgnoreCase(expected, actual)) {
+                matches.add(device);
+            }
+        }
+        return matches;
     }
 
     private boolean matchesExplicitBinding(UkeyDeviceInfo device) {

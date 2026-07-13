@@ -1,5 +1,8 @@
 package com.monitorplatform.ukey.service;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
 import com.monitorplatform.ukey.entity.UkeyCertificate;
 import com.monitorplatform.ukey.jna.VAuthServerSDKLibrary;
 import com.monitorplatform.ukey.config.TokenStore;
@@ -19,6 +22,7 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.annotation.Resource;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -44,6 +48,18 @@ public class VAuthAuthServerService {
 
     @Value("${vauth.server.auth-id:auth-server}")
     private String serverAuthId;
+
+    @Value("${vauth.server.ukey-path:}")
+    private String serverUkeyPath;
+
+    @Value("${vauth.server.ukey-sn:}")
+    private String serverUkeySn;
+
+    @Value("${vauth.server.ukey-cer-sn:}")
+    private String serverUkeyCerSn;
+
+    @Value("${vauth.server.ukey-cer-id:}")
+    private String serverUkeyCerId;
 
     private final VAuthServerSDKLibrary sdk = VAuthServerSDKLibrary.INSTANCE;
 
@@ -302,6 +318,216 @@ public class VAuthAuthServerService {
      * 以 UKey 模式打开设备
      */
     private int openUkey() {
+        log.info("[VAuthServer] 正在查找 UKey 设备, bindConfig: authId={}, path={}, sn={}, cerSn={}, cerId={}",
+                serverAuthId, serverUkeyPath, serverUkeySn, serverUkeyCerSn, serverUkeyCerId);
+
+        PointerByReference pReply = new PointerByReference();
+        boolean listOk = sdk.VAuth_ListUkeyInfos(pReply);
+        if (!listOk || pReply.getValue() == null) {
+            int code = sdk.VAuth_GetLastError();
+            String msg = getErrorText(code);
+            log.warn("[VAuthServer] 列举 UKey 失败, code={}, msg={}", code, msg);
+            return -1;
+        }
+
+        String ukeyJson = pReply.getValue().getString(0, "UTF-8");
+        sdk.VAuth_Free(pReply.getValue());
+        log.info("[VAuthServer] 发现 UKey 设备: {}", ukeyJson);
+        List<UkeyDeviceInfo> listedDevices = parseUkeyDevices(ukeyJson);
+        log.info("[VAuthServer] UKey 枚举结果: count={}", listedDevices.size());
+        for (int i = 0; i < listedDevices.size(); i++) {
+            UkeyDeviceInfo device = listedDevices.get(i);
+            log.info("[VAuthServer] UKey[{}]: name={}, label={}, sn={}, cerSn={}, cerId={}, path={}",
+                    i, device.name, device.label, device.sn, device.cerSn, device.cerId, device.path);
+        }
+
+        UkeyDeviceInfo selectedDevice = selectUkeyDevice(listedDevices);
+        if (selectedDevice == null || !hasText(selectedDevice.path) || !hasText(selectedDevice.cerId)) {
+            log.warn("[VAuthServer] 无法选择可用服务端 UKey");
+            return -1;
+        }
+
+        if (hasConfiguredServerAuthId() && !matchesAuthId(serverAuthId, selectedDevice.cerId)) {
+            log.warn("[VAuthServer] 服务端 UKey 绑定与 authId 不一致，拒绝打开: authId={}, selectedCerId={}, selectedPath={}",
+                    serverAuthId, selectedDevice.cerId, selectedDevice.path);
+            return -1;
+        }
+
+        String effectiveAuthId = resolveEffectiveServerAuthId(selectedDevice);
+        if (!hasText(effectiveAuthId)) {
+            log.warn("[VAuthServer] 无法解析服务端认证 ID，请配置 VAUTH_SERVER_AUTH_ID 或确认 UKey cerId 有效");
+            return -1;
+        }
+
+        if (hasText(serverUkeyPath) && !equalsIgnoreCase(serverUkeyPath, selectedDevice.path)) {
+            log.warn("[VAuthServer] 配置的 UKey path 已不是当前实际 path，已按稳定标识重新匹配: configuredPath={}, actualPath={}, cerId={}",
+                    serverUkeyPath, selectedDevice.path, selectedDevice.cerId);
+        }
+        log.info("[VAuthServer] 绑定服务端 UKey: name={}, label={}, sn={}, cerSn={}, cerId={}, path={}, authId={}",
+                selectedDevice.name, selectedDevice.label, selectedDevice.sn, selectedDevice.cerSn,
+                selectedDevice.cerId, selectedDevice.path, effectiveAuthId);
+
+        int handle = sdk.VAuth_OpenUkey(selectedDevice.path, serverPassword, effectiveAuthId);
+        if (handle < 0) {
+            int code = sdk.VAuth_GetLastError();
+            String msg = getErrorText(code);
+            log.warn("[VAuthServer] 打开 UKey 失败, handle={}, code={}, msg={}", handle, code, msg);
+        } else {
+            serverAuthId = effectiveAuthId;
+            log.info("[VAuthServer] 打开 UKey 成功, handle={}, effectiveAuthId={}, selectedCerId={}",
+                    handle, effectiveAuthId, selectedDevice.cerId);
+        }
+        return handle;
+    }
+
+    private UkeyDeviceInfo selectUkeyDevice(List<UkeyDeviceInfo> devices) {
+        if (devices.isEmpty()) {
+            log.warn("[VAuthServer] UKey 列表为空");
+            return null;
+        }
+
+        if (hasText(serverUkeyCerId)) {
+            return uniqueOrWarn(filterByField(devices, "cerId", serverUkeyCerId), "cerId=" + serverUkeyCerId);
+        }
+        if (hasText(serverUkeyCerSn)) {
+            return uniqueOrWarn(filterByField(devices, "cerSn", serverUkeyCerSn), "cerSn=" + serverUkeyCerSn);
+        }
+        if (hasText(serverUkeySn)) {
+            return uniqueOrWarn(filterByField(devices, "sn", serverUkeySn), "sn=" + serverUkeySn);
+        }
+        if (hasConfiguredServerAuthId()) {
+            List<UkeyDeviceInfo> matches = new ArrayList<>();
+            for (UkeyDeviceInfo device : devices) {
+                if (matchesAuthId(serverAuthId, device.cerId)) {
+                    matches.add(device);
+                }
+            }
+            return uniqueOrWarn(matches, "authId=" + serverAuthId);
+        }
+        if (hasText(serverUkeyPath)) {
+            log.info("[VAuthServer] 未配置稳定 UKey 标识，使用 path 作为兼容兜底: {}", serverUkeyPath);
+            return uniqueOrWarn(filterByField(devices, "path", serverUkeyPath), "path=" + serverUkeyPath);
+        }
+        if (devices.size() == 1) {
+            UkeyDeviceInfo device = devices.get(0);
+            log.info("[VAuthServer] 未配置服务端认证 ID，当前仅发现一个 UKey，自动使用该设备并从 cerId 推导 authId: sn={}, cerSn={}, cerId={}",
+                    device.sn, device.cerSn, device.cerId);
+            return device;
+        }
+
+        log.warn("[VAuthServer] 已发现 {} 个 UKey，但未配置 VAUTH_SERVER_UKEY_CER_ID/VAUTH_SERVER_UKEY_CER_SN/VAUTH_SERVER_UKEY_SN 或 VAUTH_SERVER_AUTH_ID，拒绝默认选择设备",
+                devices.size());
+        return null;
+    }
+
+    private List<UkeyDeviceInfo> parseUkeyDevices(String ukeyJson) {
+        List<UkeyDeviceInfo> devices = new ArrayList<>();
+        if (!hasText(ukeyJson)) {
+            return devices;
+        }
+        try {
+            JSONArray array = JSON.parseArray(ukeyJson);
+            for (int i = 0; i < array.size(); i++) {
+                JSONObject object = array.getJSONObject(i);
+                if (object == null) {
+                    continue;
+                }
+                UkeyDeviceInfo device = new UkeyDeviceInfo();
+                device.name = object.getString("name");
+                device.label = object.getString("label");
+                device.sn = object.getString("sn");
+                device.cerSn = object.getString("cerSn");
+                device.cerId = object.getString("cerId");
+                device.path = object.getString("path");
+                devices.add(device);
+            }
+        } catch (Exception e) {
+            log.warn("[VAuthServer] 解析 UKey 列表失败: {}", e.getMessage());
+        }
+        return devices;
+    }
+
+    private List<UkeyDeviceInfo> filterByField(List<UkeyDeviceInfo> devices, String field, String expected) {
+        List<UkeyDeviceInfo> matches = new ArrayList<>();
+        for (UkeyDeviceInfo device : devices) {
+            String actual;
+            if ("cerId".equals(field)) {
+                actual = device.cerId;
+            } else if ("cerSn".equals(field)) {
+                actual = device.cerSn;
+            } else if ("sn".equals(field)) {
+                actual = device.sn;
+            } else if ("path".equals(field)) {
+                actual = device.path;
+            } else {
+                actual = null;
+            }
+            if (equalsIgnoreCase(expected, actual)) {
+                matches.add(device);
+            }
+        }
+        return matches;
+    }
+
+    private UkeyDeviceInfo uniqueOrWarn(List<UkeyDeviceInfo> matches, String condition) {
+        if (matches.isEmpty()) {
+            log.warn("[VAuthServer] 未找到匹配的服务端 UKey，匹配条件: {}", condition);
+            return null;
+        }
+        if (matches.size() > 1) {
+            log.warn("[VAuthServer] 匹配到多个服务端 UKey，匹配条件: {}，请增加 cerId/cerSn/sn 约束", condition);
+            return null;
+        }
+        return matches.get(0);
+    }
+
+    private String resolveEffectiveServerAuthId(UkeyDeviceInfo device) {
+        if (hasConfiguredServerAuthId()) {
+            return serverAuthId.trim();
+        }
+        return deriveAuthIdFromCerId(device.cerId);
+    }
+
+    private String deriveAuthIdFromCerId(String cerId) {
+        if (!hasText(cerId)) {
+            return null;
+        }
+        String trimmed = cerId.trim();
+        int suffixIndex = trimmed.indexOf('_');
+        if (suffixIndex > 0) {
+            return trimmed.substring(0, suffixIndex);
+        }
+        return trimmed;
+    }
+
+    private boolean hasConfiguredServerAuthId() {
+        return hasText(serverAuthId) && !"auth-server".equalsIgnoreCase(serverAuthId.trim());
+    }
+
+    private boolean matchesAuthId(String authId, String cerId) {
+        if (!hasText(authId) || !hasText(cerId)) {
+            return false;
+        }
+        String expected = authId.trim();
+        String actual = cerId.trim();
+        return actual.equalsIgnoreCase(expected)
+                || actual.toLowerCase().startsWith(expected.toLowerCase() + "_");
+    }
+
+    private boolean equalsIgnoreCase(String expected, String actual) {
+        return expected != null && actual != null && expected.trim().equalsIgnoreCase(actual.trim());
+    }
+
+    private static class UkeyDeviceInfo {
+        private String name;
+        private String label;
+        private String sn;
+        private String cerSn;
+        private String cerId;
+        private String path;
+    }
+
+    private int openFirstUkeyLegacy() {
         log.info("[VAuthServer] 正在查找 UKey 设备...");
 
         // 1. 列举 UKey
