@@ -39,10 +39,10 @@ MINIO_BUCKET='monitor-content'
 # ========== 管控平台配置 ==========
 # 管控平台地址（用于设备注册、内容上报、UKey认证）
 MONITOR_HOST='192.168.1.233'
-MONITOR_CONTENT_PORT='8080'
-MONITOR_UKEY_PORT='8080'
-MONITOR_DEVICE_PORT='8080'
-MONITOR_LOG_URL='http://192.168.1.233:8080'
+MONITOR_CONTENT_PORT='8065'
+MONITOR_UKEY_PORT='8063'
+MONITOR_DEVICE_PORT='8062'
+MONITOR_LOG_URL='http://192.168.1.233:8071'
 
 # ========== VAuth 国密配置 ==========
 # UKey/SDF 密码卡配置
@@ -87,7 +87,7 @@ SECURE_PUBLISH_VERIFIER_PUBLIC_KEY_PATH=''
 
 # ========== MQTT Agent 配置 ==========
 # 用于公网部署场景，通过 EMQX 接收管控平台命令
-MQTT_AGENT_ENABLED=false
+MQTT_AGENT_ENABLED=true
 MQTT_BROKER_URL=ssl://127.0.0.1:8883
 MQTT_USERNAME=publish-gateway-001
 MQTT_PASSWORD=

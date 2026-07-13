@@ -37,7 +37,8 @@ mybatis-plus:
 # 管控平台配置
 monitor:
   platform:
-    content-url: http://${MONITOR_HOST:127.0.0.1}:${MONITOR_CONTENT_PORT:8065}
+    # Full URL override has highest priority; otherwise build the content service URL from microservice host/port.
+    content-url: "${MONITOR_CONTENT_URL:http://${MONITOR_HOST:127.0.0.1}:${MONITOR_CONTENT_PORT:8065}}"
 
 # MinIO 对象存储配置
 minio:
@@ -71,7 +72,8 @@ vauth:
   # 本端 UKey 签名证书路径
   client-cert-path: "certs/${VAUTH_AUTH_ID:44030000003330000305}_SIGN.cer"
   # 管控平台地址（用于双向认证握手）
-  control-platform-url: "http://${MONITOR_HOST:127.0.0.1}:${MONITOR_UKEY_PORT:8063}"
+  # Full URL override has highest priority; otherwise build the UKey service URL from microservice host/port.
+  control-platform-url: "${CONTROL_PLATFORM_URL:http://${MONITOR_HOST:127.0.0.1}:${MONITOR_UKEY_PORT:8063}}"
   # 加密时是否附带SM2签名
   sign-enabled: true
   # SVAC2 编码加密模式开关
@@ -95,6 +97,13 @@ secure-publish:
   stale-gap-ms: ${SECURE_PUBLISH_STALE_GAP_MS:30000}
   rejected-dir: ${SECURE_PUBLISH_REJECTED_DIR:/opt/publish-gateway/secure-publish/rejected}
 
+secure-delivery:
+  download:
+    timeout-ms: ${SECURE_DELIVERY_DOWNLOAD_TIMEOUT_MS:900000}
+    max-file-size-mb: ${SECURE_DELIVERY_DOWNLOAD_MAX_FILE_SIZE_MB:2048}
+  large-file:
+    file-ref-enabled: ${SECURE_DELIVERY_LARGE_FILE_REF_ENABLED:true}
+
 # 日志配置
 logging:
   level:
@@ -106,6 +115,8 @@ logging:
 
 
 gateway:
+  diagnostics:
+    enabled: ${GATEWAY_DIAGNOSTICS_ENABLED:false}
   transcode:
     enabled: false            # false=透传模式，true=转码模式
 
@@ -127,6 +138,11 @@ relay-file-signature:
   prefer-client-signature: ${RELAY_FILE_SIGNATURE_PREFER_CLIENT:true}
   require-client-signature: ${RELAY_FILE_SIGNATURE_REQUIRE_CLIENT:false}
 
+control-delivery:
+  mqtt-final-reply:
+    poll-interval-ms: ${CONTROL_DELIVERY_MQTT_FINAL_REPLY_POLL_INTERVAL_MS:1000}
+    timeout-ms: ${CONTROL_DELIVERY_MQTT_FINAL_REPLY_TIMEOUT_MS:60000}
+
 content-release-token:
   enabled: ${CONTENT_RELEASE_TOKEN_ENABLED:false}
   require-token: ${CONTENT_RELEASE_TOKEN_REQUIRE_TOKEN:false}
@@ -144,7 +160,6 @@ security:
   client-port: ${CLIENT_PORT:7081}
   # 同步 HTTP 校验超时（毫秒），建议 2000ms 以内，超时后降级放行
   client-validate-timeout-ms: ${CLIENT_VALIDATE_TIMEOUT_MS:2000}
-  per-packet-client-validation-enabled: ${PER_PACKET_CLIENT_VALIDATION_ENABLED:true}
   # 是否启用来源校验，false 时跳过（仅用于调试环境，生产必须设为 true）
 
 
@@ -196,6 +211,8 @@ mqtt-agent:
   qos: 1
   clean-session: true
   auto-reconnect: true
+  http-forward:
+    timeout-ms: ${MQTT_HTTP_FORWARD_TIMEOUT_MS:15000}
   truststore-path: ${MQTT_TRUSTSTORE_PATH:}
   truststore-password: ${MQTT_TRUSTSTORE_PASSWORD:}
   registration-enabled: ${MQTT_REGISTER

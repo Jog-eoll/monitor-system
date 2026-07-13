@@ -37,9 +37,36 @@ mybatis-plus:
 # 管控平台配置
 monitor:
   platform:
-    content-url: http://${MONITOR_HOST:127.0.0.1}:${MONITOR_CONTENT_PORT:8065}
+    # Full URL override has highest priority; otherwise build the content service URL from microservice host/port.
+    content-url: "${MONITOR_CONTENT_URL:http://${MONITOR_HOST:127.0.0.1}:${MONITOR_CONTENT_PORT:8065}}"
+  log:
+    # Full URL override has highest priority; otherwise use the log microservice default port 8071.
+    url: ${MONITOR_LOG_URL:http://${MONITOR_HOST:127.0.0.1}:8071}
+
+diagnostic:
+  log:
+    enabled: ${DIAGNOSTIC_LOG_ENABLED:true}
+
+log:
+  report-token: ${LOG_REPORT_TOKEN:}
 
 # MinIO 对象存储配置
+secure-delivery:
+  permit:
+    hmac-secret: ${SECURE_DELIVERY_PERMIT_HMAC_SECRET:ChangeMe_Sigma_Permit_Secret_32Bytes!}
+  terminal-gateway-url: ${SECURE_DELIVERY_TERMINAL_GW_URL:http://127.0.0.1:8093}
+  large-file:
+    file-ref-enabled: ${SECURE_DELIVERY_LARGE_FILE_REF_ENABLED:true}
+  download:
+    timeout-ms: ${SECURE_DELIVERY_DOWNLOAD_TIMEOUT_MS:900000}
+    max-file-size-mb: ${SECURE_DELIVERY_DOWNLOAD_MAX_FILE_SIZE_MB:2048}
+  envelope:
+    enabled: ${SECURE_DELIVERY_ENVELOPE_ENABLED:false}
+    schema-version: ${SECURE_DELIVERY_ENVELOPE_SCHEMA_VERSION:2.0}
+  terminal-http:
+    connect-timeout-ms: ${SECURE_DELIVERY_TERMINAL_HTTP_CONNECT_TIMEOUT_MS:5000}
+    read-timeout-ms: ${SECURE_DELIVERY_TERMINAL_HTTP_READ_TIMEOUT_MS:900000}
+
 minio:
   enabled: true
   endpoint: http://${MINIO_HOST:127.0.0.1}:${MINIO_PORT:9000}
@@ -71,15 +98,27 @@ vauth:
   # 本端 UKey 签名证书路径
   client-cert-path: "certs/${VAUTH_AUTH_ID:44030000003330000305}_SIGN.cer"
   # 管控平台地址（用于双向认证握手）
-  control-platform-url: "http://${MONITOR_HOST:127.0.0.1}:${MONITOR_UKEY_PORT:8063}"
+  # Full URL override has highest priority; otherwise build the UKey service URL from microservice host/port.
+  control-platform-url: "${CONTROL_PLATFORM_URL:http://${MONITOR_HOST:127.0.0.1}:${MONITOR_UKEY_PORT:8063}}"
   # 加密时是否附带SM2签名
   sign-enabled: true
   # SVAC2 编码加密模式开关
   # true  = 使用 VAuth_EncryptPackData（SVAC2 编码+加密，仅 Linux 可用）
   # false = 使用 VAuth_EncryptData（国密整包加密，默认）
   svac-mode: ${VAUTH_SVAC_MODE:false}
+  payload-debug-log-enabled: ${VAUTH_PAYLOAD_DEBUG_LOG_ENABLED:false}
+  svac-matrix-test-enabled: ${VAUTH_SVAC_MATRIX_TEST_ENABLED:false}
 
 # Sigma Play 安全包验签配置
+  svac-module:
+    required: ${VAUTH_SVAC_MODULE_REQUIRED:false}
+    device-path: "${VAUTH_SVAC_MODULE_DEVICE_PATH:}"
+    sysfs-root: "${VAUTH_SVAC_MODULE_SYSFS_ROOT:/sys/bus/usb/devices}"
+    vendor-id: "${VAUTH_SVAC_MODULE_VENDOR_ID:}"
+    product-id: "${VAUTH_SVAC_MODULE_PRODUCT_ID:}"
+    serial: "${VAUTH_SVAC_MODULE_SERIAL:}"
+    scan-interval-ms: ${VAUTH_SVAC_MODULE_SCAN_INTERVAL_MS:200}
+
 secure-publish:
   enabled: ${SECURE_PUBLISH_ENABLED:false}
   trust-store-dir: ${SECURE_PUBLISH_TRUST_STORE_DIR:/opt/publish-gateway/trust}
@@ -94,6 +133,13 @@ secure-publish:
   assembly-timeout-ms: ${SECURE_PUBLISH_ASSEMBLY_TIMEOUT_MS:120000}
   stale-gap-ms: ${SECURE_PUBLISH_STALE_GAP_MS:30000}
   rejected-dir: ${SECURE_PUBLISH_REJECTED_DIR:/opt/publish-gateway/secure-publish/rejected}
+  jpeg:
+    enabled: ${SECURE_PUBLISH_JPEG_ENABLED:true}
+    mode: ${SECURE_PUBLISH_JPEG_MODE:audit}
+    require-block: ${SECURE_PUBLISH_JPEG_REQUIRE_BLOCK:false}
+    require-signature: ${SECURE_PUBLISH_JPEG_REQUIRE_SIGNATURE:true}
+    require-content-allow: ${SECURE_PUBLISH_JPEG_REQUIRE_CONTENT_ALLOW:true}
+    require-not-expired: ${SECURE_PUBLISH_JPEG_REQUIRE_NOT_EXPIRED:true}
 
 # 日志配置
 logging:
@@ -106,6 +152,8 @@ logging:
 
 
 gateway:
+  diagnostics:
+    enabled: ${GATEWAY_DIAGNOSTICS_ENABLED:false}
   transcode:
     enabled: false            # false=透传模式，true=转码模式
 
@@ -127,6 +175,11 @@ relay-file-signature:
   prefer-client-signature: ${RELAY_FILE_SIGNATURE_PREFER_CLIENT:true}
   require-client-signature: ${RELAY_FILE_SIGNATURE_REQUIRE_CLIENT:false}
 
+control-delivery:
+  mqtt-final-reply:
+    poll-interval-ms: ${CONTROL_DELIVERY_MQTT_FINAL_REPLY_POLL_INTERVAL_MS:1000}
+    timeout-ms: ${CONTROL_DELIVERY_MQTT_FINAL_REPLY_TIMEOUT_MS:60000}
+
 content-release-token:
   enabled: ${CONTENT_RELEASE_TOKEN_ENABLED:false}
   require-token: ${CONTENT_RELEASE_TOKEN_REQUIRE_TOKEN:false}
@@ -144,7 +197,7 @@ security:
   client-port: ${CLIENT_PORT:7081}
   # 同步 HTTP 校验超时（毫秒），建议 2000ms 以内，超时后降级放行
   client-validate-timeout-ms: ${CLIENT_VALIDATE_TIMEOUT_MS:2000}
-  per-packet-client-validation-enabled: ${PER_PACKET_CLIENT_VALIDATION_ENABLED:true}
+  per-packet-client-validation-enabled: ${PER_PACKET_CLIENT_VALIDATION_ENABLED:false}
   # 是否启用来源校验，false 时跳过（仅用于调试环境，生产必须设为 true）
 
 
@@ -196,3 +249,43 @@ mqtt-agent:
   qos: 1
   clean-session: true
   auto-reconnect: true
+  truststore-path: ${MQTT_TRUSTSTORE_PATH:}
+  truststore-password: ${MQTT_TRUSTSTORE_PASSWORD:}
+  registration-enabled: ${MQTT_REGISTER_ENABLED:true}
+  register-on-connect: ${MQTT_REGISTER_ON_CONNECT:true}
+  registration-interval-sec: ${MQTT_REGISTER_INTERVAL_SEC:300}
+  service-name: ${MQTT_REGISTER_SERVICE_NAME:publish-gateway}
+  register-host: ${MQTT_REGISTER_HOST:}
+  register-port: ${MQTT_REGISTER_PORT:${server.port:8092}}
+  mac-address: ${MQTT_REGISTER_MAC:}
+  location: ${MQTT_REGISTER_LOCATION:${registry.client.location:}}
+  version: ${MQTT_REGISTER_VERSION:${registry.client.version:}}
+  manufacturer: ${MQTT_REGISTER_MANUFACTURER:${registry.client.manufacturer:}}
+  model: ${MQTT_REGISTER_MODEL:${registry.client.model:}}
+  remark: ${MQTT_REGISTER_REMARK:}
+  http-forward:
+    allowed-paths:
+      - /udp-proxy/config
+      - /udp-proxy/chain/
+      - /udp-proxy/stop/
+      - /udp-proxy/status/
+      - /udp-proxy/rules
+      - /api/client/commands/
+      - /api/secure-command/
+      - /api/command/
+      - /api/secure-delivery/control-tasks
+    timeout-ms: ${MQTT_HTTP_FORWARD_TIMEOUT_MS:15000}
+
+system-network-change:
+  enabled: ${SYSTEM_NETWORK_CHANGE_ENABLED:false}
+  allowed-interfaces: ${SYSTEM_NETWORK_CHANGE_ALLOWED_INTERFACES:}
+  rollback-dir: ${SYSTEM_NETWORK_CHANGE_ROLLBACK_DIR:/tmp}
+  command-timeout-ms: ${SYSTEM_NETWORK_CHANGE_COMMAND_TIMEOUT_MS:10000}
+
+upgrade:
+  executor:
+    enabled: ${UPGRADE_EXECUTOR_ENABLED:false}
+    work-dir: ${UPGRADE_EXECUTOR_WORK_DIR:/opt/monitor-platform/upgrade}
+    install-command: ${UPGRADE_EXECUTOR_INSTALL_COMMAND:}
+    connect-timeout-ms: ${UPGRADE_EXECUTOR_CONNECT_TIMEOUT_MS:10000}
+    read-timeout-ms: ${UPGRADE_EXECUTOR_READ_TIMEOUT_MS:60000}

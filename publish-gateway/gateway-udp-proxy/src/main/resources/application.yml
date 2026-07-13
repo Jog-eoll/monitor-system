@@ -37,8 +37,10 @@ mybatis-plus:
 # 管控平台配置
 monitor:
   platform:
-    content-url: http://${MONITOR_HOST:127.0.0.1}:${MONITOR_CONTENT_PORT:8065}
+    # Full URL override has highest priority; otherwise build the content service URL from microservice host/port.
+    content-url: "${MONITOR_CONTENT_URL:http://${MONITOR_HOST:127.0.0.1}:${MONITOR_CONTENT_PORT:8065}}"
   log:
+    # Full URL override has highest priority; otherwise use the log microservice default port 8071.
     url: ${MONITOR_LOG_URL:http://${MONITOR_HOST:127.0.0.1}:8071}
 
 diagnostic:
@@ -80,7 +82,8 @@ vauth:
   # 本端 UKey 签名证书路径
   client-cert-path: "/app/certs/${VAUTH_AUTH_ID:44030000003330000305}_SIGN.cer"
   # 管控平台地址（用于双向认证握手）
-  control-platform-url: "http://${MONITOR_HOST:127.0.0.1}:${MONITOR_UKEY_PORT:8063}"
+  # Full URL override has highest priority; otherwise build the UKey service URL from microservice host/port.
+  control-platform-url: "${CONTROL_PLATFORM_URL:http://${MONITOR_HOST:127.0.0.1}:${MONITOR_UKEY_PORT:8063}}"
   # 加密时是否附带SM2签名
   sign-enabled: true
   # SVAC2 编码加密模式开关
@@ -163,11 +166,15 @@ secure-delivery:
     hmac-secret: ${SECURE_DELIVERY_PERMIT_HMAC_SECRET:ChangeMe_Sigma_Permit_Secret_32Bytes!}
   # 解密网关（terminal-gateway）的 HTTP 地址
   terminal-gateway-url: ${SECURE_DELIVERY_TERMINAL_GW_URL:http://127.0.0.1:8093}
+  large-file:
+    # Video files use a file reference manifest so the publish gateway does not
+    # hold multi-GB content in heap. Images and other small files keep old path.
+    file-ref-enabled: ${SECURE_DELIVERY_LARGE_FILE_REF_ENABLED:true}
   download:
     # 文件下载超时（毫秒）
-    timeout-ms: ${SECURE_DELIVERY_DOWNLOAD_TIMEOUT_MS:30000}
+    timeout-ms: ${SECURE_DELIVERY_DOWNLOAD_TIMEOUT_MS:900000}
     # 单文件最大大小（MB）
-    max-file-size-mb: ${SECURE_DELIVERY_DOWNLOAD_MAX_FILE_SIZE_MB:50}
+    max-file-size-mb: ${SECURE_DELIVERY_DOWNLOAD_MAX_FILE_SIZE_MB:2048}
   # v2 信封模式开关
   envelope:
     # true=启用 v2 统一信封，false=回退到旧扁平 JSON（联调失败时可临时切回）
@@ -178,7 +185,12 @@ secure-delivery:
     # 解密网关 HTTP 连接超时（毫秒）
     connect-timeout-ms: ${SECURE_DELIVERY_TERMINAL_HTTP_CONNECT_TIMEOUT_MS:5000}
     # 解密网关 HTTP 读取超时（毫秒）
-    read-timeout-ms: ${SECURE_DELIVERY_TERMINAL_HTTP_READ_TIMEOUT_MS:10000}
+    read-timeout-ms: ${SECURE_DELIVERY_TERMINAL_HTTP_READ_TIMEOUT_MS:900000}
+
+control-delivery:
+  mqtt-final-reply:
+    poll-interval-ms: ${CONTROL_DELIVERY_MQTT_FINAL_REPLY_POLL_INTERVAL_MS:1000}
+    timeout-ms: ${CONTROL_DELIVERY_MQTT_FINAL_REPLY_TIMEOUT_MS:60000}
 
 content-release-token:
   enabled: ${CONTENT_RELEASE_TOKEN_ENABLED:false}
@@ -276,7 +288,8 @@ mqtt-agent:
       - /api/client/commands/
       - /api/secure-command/
       - /api/command/
-    timeout-ms: ${MQTT_HTTP_FORWARD_TIMEOUT_MS:5000}
+      - /api/secure-delivery/control-tasks
+    timeout-ms: ${MQTT_HTTP_FORWARD_TIMEOUT_MS:15000}
 
 system-network-change:
   enabled: ${SYSTEM_NETWORK_CHANGE_ENABLED:false}
