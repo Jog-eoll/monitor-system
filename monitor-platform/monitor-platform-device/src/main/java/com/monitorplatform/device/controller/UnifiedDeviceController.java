@@ -41,6 +41,9 @@ public class UnifiedDeviceController {
     @Value("${info-board.default-publish-gateway-url:http://127.0.0.1:8092}")
     private String defaultPublishGatewayUrl;
 
+    @Resource
+    private RestTemplate restTemplate;
+
     /**
      * 获取设备分类树
      * GET /device/unified/tree
@@ -482,7 +485,6 @@ public class UnifiedDeviceController {
                 registerBody.put("terminalGatewayUrl", dto.getTerminalGatewayUrl());
                 registerBody.put("sn", dto.getDeviceId());
 
-                RestTemplate restTemplate = new RestTemplate();
                 String url = publishGatewayUrl + "/api/terminal-devices/register";
                 @SuppressWarnings("unchecked")
                 Map<String, Object> resp = restTemplate.postForObject(url, registerBody, Map.class);
@@ -553,7 +555,6 @@ public class UnifiedDeviceController {
             gatewayResult.put("lastAttemptTime", LocalDateTime.now().toString());
 
             try {
-                RestTemplate restTemplate = new RestTemplate();
                 String url = defaultPublishGatewayUrl + "/api/terminal-devices/register";
                 @SuppressWarnings("unchecked")
                 Map<String, Object> resp = restTemplate.postForObject(url, registerBody, Map.class);
