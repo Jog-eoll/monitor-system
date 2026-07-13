@@ -108,7 +108,7 @@ public class ContentMonitorServiceImpl implements ContentMonitorService {
                 dto.getContentId(), dto.getContentType(), dto.getGatewayId());
 
         String contentType = dto.getContentType();
-        if (!"image".equals(contentType) && !"text".equals(contentType) && !"video".equals(contentType)) {
+        if (!isSupportedContentType(contentType)) {
             log.warn("ignore unsupported content type, contentId={}, type={}", dto.getContentId(), contentType);
             ContentMonitor dummy = new ContentMonitor();
             dummy.setContentId(dto.getContentId());
@@ -137,14 +137,17 @@ public class ContentMonitorServiceImpl implements ContentMonitorService {
         record.setPlayBatchId(normalizeBlank(dto.getPlayBatchId()));
         record.setPlayBatchSeq(dto.getPlayBatchSeq());
         record.setPlayBatchSize(dto.getPlayBatchSize());
-        record.setStatus("pending");
+        record.setPublishRequestId(normalizeBlank(dto.getPublishRequestId()));
+        record.setStatus(shouldRecognize(contentType) ? "pending" : "normal");
         record.setIsViolation(0);
         record.setReceiveTime(LocalDateTime.now());
         record.setCreateTime(LocalDateTime.now());
         record.setUpdateTime(LocalDateTime.now());
 
-        contentMonitorMapper.insert(record);
-        selfProxy.asyncRecognize(record);
+        saveContentRecord(record);
+        if (shouldRecognize(contentType) && selfProxy != null) {
+            selfProxy.asyncRecognize(record);
+        }
         writePublishOperationLog(record, true);
         return record;
     }
@@ -679,6 +682,32 @@ public class ContentMonitorServiceImpl implements ContentMonitorService {
         }
         String value = contentId.trim();
         return value.isEmpty() ? null : value;
+    }
+
+    private boolean isSupportedContentType(String contentType) {
+        return "image".equals(contentType)
+                || "text".equals(contentType)
+                || "video".equals(contentType)
+                || "playlist".equals(contentType);
+    }
+
+    private boolean shouldRecognize(String contentType) {
+        return "image".equals(contentType)
+                || "text".equals(contentType)
+                || "video".equals(contentType);
+    }
+
+    private void saveContentRecord(ContentMonitor record) {
+        if (record != null && "playlist".equals(record.getContentType())) {
+            ContentMonitor existing = contentMonitorMapper.selectByContentId(record.getContentId());
+            if (existing != null && existing.getId() != null) {
+                record.setId(existing.getId());
+                record.setCreateTime(existing.getCreateTime());
+                contentMonitorMapper.updateById(record);
+                return;
+            }
+        }
+        contentMonitorMapper.insert(record);
     }
 
     private List<ContentMonitor> selectDisplayContents(ContentMonitor latest) {

@@ -64,6 +64,9 @@ public class ContentMonitor {
     /** Total item count of the playlist batch. */
     private Integer playBatchSize;
 
+    /** Original publish request ID for matching diagnostic_event_log.trace_id. */
+    private String publishRequestId;
+
     /** 状态：pending-待识别，normal-正常，violation-违规，stopped-已切断 */
     private String status;
 

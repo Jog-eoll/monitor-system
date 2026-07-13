@@ -83,4 +83,7 @@ public class QwenDetectionRequestDTO {
 
     /** Total item count of the playlist batch. */
     private Integer playBatchSize;
+
+    /** Original publish request ID; distinct from AI detection requestId. */
+    private String publishRequestId;
 }

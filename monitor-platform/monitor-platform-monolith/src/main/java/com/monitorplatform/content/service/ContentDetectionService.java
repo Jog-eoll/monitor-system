@@ -186,6 +186,7 @@ public class ContentDetectionService {
         record.setPlayBatchId(StrUtil.isBlank(request.getPlayBatchId()) ? null : request.getPlayBatchId().trim());
         record.setPlayBatchSeq(request.getPlayBatchSeq());
         record.setPlayBatchSize(request.getPlayBatchSize());
+        record.setPublishRequestId(StrUtil.isBlank(request.getPublishRequestId()) ? null : request.getPublishRequestId().trim());
         record.setStatus("pending");
         record.setIsViolation(0);
         record.setReceiveTime(LocalDateTime.now());

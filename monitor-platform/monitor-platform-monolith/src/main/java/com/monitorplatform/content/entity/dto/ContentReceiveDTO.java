@@ -57,6 +57,9 @@ public class ContentReceiveDTO {
     /** Total item count of the playlist batch. */
     private Integer playBatchSize;
 
+    /** Original publish request ID; distinct from AI detection requestId. */
+    private String publishRequestId;
+
     /** 时间戳 */
     private Long timestamp;   
 }

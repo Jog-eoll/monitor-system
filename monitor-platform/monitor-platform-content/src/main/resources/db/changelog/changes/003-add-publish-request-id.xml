@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="content-003-add-publish-request-id" author="codex">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <and>
+                <tableExists tableName="t_content_monitor"/>
+                <not>
+                    <columnExists tableName="t_content_monitor" columnName="publish_request_id"/>
+                </not>
+            </and>
+        </preConditions>
+        <addColumn tableName="t_content_monitor">
+            <column name="publish_request_id" type="VARCHAR(100)" remarks="Original publish request ID for diagnostic trace correlation"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="content-003-add-publish-request-id-index" author="codex">
+        <preConditions onFail="MARK_RAN" onError="HALT">
+            <and>
+                <tableExists tableName="t_content_monitor"/>
+                <columnExists tableName="t_content_monitor" columnName="publish_request_id"/>
+                <not>
+                    <indexExists tableName="t_content_monitor" indexName="idx_content_publish_request_id"/>
+                </not>
+            </and>
+        </preConditions>
+        <createIndex tableName="t_content_monitor" indexName="idx_content_publish_request_id">
+            <column name="publish_request_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

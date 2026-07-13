@@ -36,7 +36,7 @@ public class MinioConfig {
     /**
      * 默认存储桶名称
      */
-    private String bucketName = "monitor-platform";
+    private String bucketName = "monitor-content";
 
     /**
      * 创建 MinioClient 客户端

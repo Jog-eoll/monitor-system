@@ -8,5 +8,6 @@
     <include file="db/changelog/changes/001-create-content-detection-task-table.xml"/>
     <include file="db/changelog/changes/002-alter-content-monitor-table.xml"/>
     <include file="db/changelog/changes/002-add-play-batch-fields.xml"/>
+    <include file="db/changelog/changes/003-add-publish-request-id.xml"/>
 
 </databaseChangeLog>
