@@ -42,7 +42,8 @@ public class GatewayNetworkController {
                     targetDeviceId,
                     "CHANGE_SYSTEM_IP",
                     request.toPayload(),
-                    Collections.emptyList());
+                    Collections.emptyList(),
+                    trimToNull(request.getChangeId()));
             Result<?> result = waitAndBuildResult(record);
 
             if (Boolean.TRUE.equals(request.getDryRun())) {
@@ -81,7 +82,8 @@ public class GatewayNetworkController {
                     targetDeviceId,
                     "CONFIRM_SYSTEM_IP",
                     request.toPayload(),
-                    Collections.emptyList());
+                    Collections.emptyList(),
+                    trimToNull(request.getChangeId()));
             return waitAndBuildResult(record);
         } catch (Exception e) {
             log.error("下发目标设备系统IP变更确认命令失败", e);
@@ -110,5 +112,12 @@ public class GatewayNetworkController {
         }
         return Result.error("MQTT命令执行失败: " + current.getStatus()
                 + (current.getErrorMessage() == null ? "" : " - " + current.getErrorMessage()));
+    }
+
+    private String trimToNull(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        return value.trim();
     }
 }

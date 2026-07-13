@@ -32,7 +32,12 @@ public class MqttRegisterHandler {
             return;
         }
 
+        // 设备重复注册治理：记录去重键，后端按 deviceType+host+port 检查旧记录并标记离线
+        String dedupKey = register.getDeviceType() + ":" + register.getHost() + ":" + register.getPort();
+        log.info("[MQTT注册] 设备注册去重键: dedupKey={}, instanceId={}", dedupKey, instanceId);
+
         Map<String, Object> body = toRegisterBody(register, instanceId);
+        body.put("dedupKey", dedupKey);
         try {
             Map<String, Object> response = deviceFeignClient.register(body);
             if (isSuccess(response)) {

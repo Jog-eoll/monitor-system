@@ -38,7 +38,7 @@ public class MqttDispatchProperties {
 
     private String deviceDefaultPassword;
 
-    private boolean allowEmptyDevicePassword = true;
+    private boolean allowEmptyDevicePassword = false;
 
     private String platformClientPrefix = "monitor-platform,platform,server";
 

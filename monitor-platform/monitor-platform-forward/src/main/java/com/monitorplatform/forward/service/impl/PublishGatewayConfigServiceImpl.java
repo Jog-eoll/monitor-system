@@ -343,6 +343,123 @@ public class PublishGatewayConfigServiceImpl implements PublishGatewayConfigServ
                 || DISPATCH_MODE_DUAL.equalsIgnoreCase(mode);
     }
 
+    private String resolveMqttGatewayDeviceId(TaskChainNode gatewayNode) {
+        if (gatewayNode == null) {
+            return null;
+        }
+        String logicalDeviceId = normalizeText(gatewayNode.getDeviceId());
+        if (isRoutableMqttGatewayId(logicalDeviceId)) {
+            return logicalDeviceId;
+        }
+
+        String explicitMqttId = queryConfiguredMqttDeviceId(gatewayNode);
+        if (explicitMqttId != null) {
+            log.info("[MQTT下发] 链路节点 ID 映射为 MQTT agent ID: logicalDeviceId={}, mqttDeviceId={}",
+                    logicalDeviceId, explicitMqttId);
+            return explicitMqttId;
+        }
+
+        String derivedMqttId = deriveMqttGatewayDeviceId(gatewayNode.getDeviceType(), gatewayNode.getDeviceIp());
+        if (derivedMqttId != null) {
+            log.warn("[MQTT下发] 未查询到显式 MQTT agent ID，按网关 IP 推导: logicalDeviceId={}, deviceType={}, deviceIp={}, mqttDeviceId={}",
+                    logicalDeviceId, gatewayNode.getDeviceType(), gatewayNode.getDeviceIp(), derivedMqttId);
+            return derivedMqttId;
+        }
+
+        return logicalDeviceId;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String queryConfiguredMqttDeviceId(TaskChainNode gatewayNode) {
+        String logicalDeviceId = normalizeText(gatewayNode.getDeviceId());
+        String deviceType = normalizeText(gatewayNode.getDeviceType());
+        if (logicalDeviceId == null || deviceType == null || deviceFeignClient == null) {
+            return null;
+        }
+        try {
+            Map<String, Object> resp = deviceFeignClient.getDeviceDetail(deviceType, logicalDeviceId);
+            if (resp == null || !Integer.valueOf(200).equals(resp.get("code"))) {
+                return null;
+            }
+            Object dataObj = resp.get("data");
+            if (!(dataObj instanceof Map)) {
+                return null;
+            }
+            Map<String, Object> data = (Map<String, Object>) dataObj;
+            String candidate = firstText(data.get("mqttDeviceId"), data.get("mqttClientId"), data.get("instanceId"));
+            if (isRoutableMqttGatewayId(candidate)) {
+                return candidate;
+            }
+            Object specificObj = data.get("specificAttributes");
+            if (specificObj instanceof Map) {
+                Map<String, Object> specific = (Map<String, Object>) specificObj;
+                candidate = firstText(specific.get("mqttDeviceId"), specific.get("mqttClientId"), specific.get("instanceId"));
+                if (isRoutableMqttGatewayId(candidate)) {
+                    return candidate;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[MQTT下发] 查询 MQTT agent ID 映射失败: logicalDeviceId={}, error={}",
+                    logicalDeviceId, e.getMessage());
+        }
+        return null;
+    }
+
+    private String deriveMqttGatewayDeviceId(String deviceType, String deviceIp) {
+        String ip = normalizeText(deviceIp);
+        if (ip == null) {
+            return null;
+        }
+        String[] parts = ip.split("\\.");
+        if (parts.length != 4) {
+            return null;
+        }
+        String lastOctet = parts[3];
+        try {
+            int value = Integer.parseInt(lastOctet);
+            if (value < 0 || value > 255) {
+                return null;
+            }
+        } catch (NumberFormatException e) {
+            return null;
+        }
+
+        if (TYPE_PUBLISH_GATEWAY.equalsIgnoreCase(deviceType)) {
+            return "publish-gateway-" + lastOctet;
+        }
+        if (TYPE_TERMINAL_GATEWAY.equalsIgnoreCase(deviceType)) {
+            return "terminal-gateway-" + lastOctet;
+        }
+        return null;
+    }
+
+    private boolean isRoutableMqttGatewayId(String deviceId) {
+        String value = normalizeText(deviceId);
+        return value != null
+                && (value.startsWith("publish-gateway-") || value.startsWith("terminal-gateway-"));
+    }
+
+    private String firstText(Object... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Object value : values) {
+            String text = normalizeText(value == null ? null : String.valueOf(value));
+            if (text != null) {
+                return text;
+            }
+        }
+        return null;
+    }
+
+    private String normalizeText(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
     /**
      * 通过 MQTT 下发配置命令到发布网关。
      * <p>
@@ -351,7 +468,7 @@ public class PublishGatewayConfigServiceImpl implements PublishGatewayConfigServ
      * </p>
      *
      * @param gatewayDeviceId 发布网关设备 ID
-     * @param command        命令名称（如 APPLY_CHAIN_CONFIG）
+     * @param command        命令名称（如 CHAIN_DEPLOY）
      * @param actions        动作列表
      * @return true 表示 MQTT 发布成功
      */
@@ -513,7 +630,7 @@ public class PublishGatewayConfigServiceImpl implements PublishGatewayConfigServ
                 selfAction.setTargetDeviceType(TYPE_PUBLISH_GATEWAY);
                 selfAction.setMode("SELF_APPLY");
                 selfAction.setBody(new HashMap<>(requestBody));
-                return dispatchViaMqtt(publishGwNode.getDeviceId(), "APPLY_CHAIN_CONFIG",
+                return dispatchViaMqtt(resolveMqttGatewayDeviceId(publishGwNode), "CHAIN_DEPLOY",
                         Collections.singletonList(selfAction));
             }
             // dual 模式：同时走 MQTT 和 HTTP
@@ -522,7 +639,7 @@ public class PublishGatewayConfigServiceImpl implements PublishGatewayConfigServ
                 selfAction.setTargetDeviceType(TYPE_PUBLISH_GATEWAY);
                 selfAction.setMode("SELF_APPLY");
                 selfAction.setBody(new HashMap<>(requestBody));
-                dispatchViaMqtt(publishGwNode.getDeviceId(), "APPLY_CHAIN_CONFIG",
+                dispatchViaMqtt(resolveMqttGatewayDeviceId(publishGwNode), "CHAIN_DEPLOY",
                         Collections.singletonList(selfAction));
             }
 
@@ -649,7 +766,7 @@ public class PublishGatewayConfigServiceImpl implements PublishGatewayConfigServ
                 mqttBody.put("targetIp", terminalGatewayIp);
                 mqttBody.put("targetPort", terminalGatewayPort);
                 httpAction.setBody(mqttBody);
-                boolean mqttSuccess = dispatchViaMqtt(publishGwNode.getDeviceId(), "APPLY_CHAIN_CONFIG",
+                boolean mqttSuccess = dispatchViaMqtt(resolveMqttGatewayDeviceId(publishGwNode), "CHAIN_DEPLOY",
                         Collections.singletonList(httpAction));
                 if (!mqttSuccess) {
                     return -1;
@@ -671,7 +788,7 @@ public class PublishGatewayConfigServiceImpl implements PublishGatewayConfigServ
                 mqttBody.put("targetIp", terminalGatewayIp);
                 mqttBody.put("targetPort", terminalGatewayPort);
                 httpAction.setBody(mqttBody);
-                dispatchViaMqtt(publishGwNode.getDeviceId(), "APPLY_CHAIN_CONFIG",
+                dispatchViaMqtt(resolveMqttGatewayDeviceId(publishGwNode), "CHAIN_DEPLOY",
                         Collections.singletonList(httpAction));
             }
 
@@ -1196,7 +1313,7 @@ public class PublishGatewayConfigServiceImpl implements PublishGatewayConfigServ
                 mqttBody.put("targetIp", clientIp);
                 mqttBody.put("targetPort", clientPort);
                 httpAction.setBody(mqttBody);
-                return dispatchViaMqtt(publishGwNode.getDeviceId(), "APPLY_CHAIN_CONFIG",
+                return dispatchViaMqtt(resolveMqttGatewayDeviceId(publishGwNode), "CHAIN_DEPLOY",
                         Collections.singletonList(httpAction));
             }
             // dual 模式：同时走 MQTT 和 HTTP
@@ -1213,7 +1330,7 @@ public class PublishGatewayConfigServiceImpl implements PublishGatewayConfigServ
                 mqttBody.put("targetIp", clientIp);
                 mqttBody.put("targetPort", clientPort);
                 httpAction.setBody(mqttBody);
-                dispatchViaMqtt(publishGwNode.getDeviceId(), "APPLY_CHAIN_CONFIG",
+                dispatchViaMqtt(resolveMqttGatewayDeviceId(publishGwNode), "CHAIN_DEPLOY",
                         Collections.singletonList(httpAction));
             }
 

@@ -1,18 +1,23 @@
 package com.publishgateway.udpproxy.mqtt;
 
+import com.publishgateway.udpproxy.entity.MqttCommandRecord;
+import com.publishgateway.udpproxy.mapper.MqttCommandRecordMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 命令幂等记录服务 —— 基于 messageId 的去重，避免重复执行同一条下行命令。
+ * 网关命令幂等服务 —— 内存缓存加速 + DB 唯一键持久化双层防重。
  * <p>
- * v1 使用进程内 ConcurrentHashMap，单实例部署足够。多实例横向扩展时
- * 可替换为 Redis SETNX 实现。
+ * 容器重启后内存缓存丢失，但 DB 唯一键仍能防止重复 messageId 重复执行副作用。
  * </p>
  */
 @Slf4j
@@ -22,75 +27,123 @@ public class MqttCommandRecordService {
     @Resource
     private MqttAgentProperties properties;
 
-    /** 已处理 messageId 集合（value 为首次处理时间戳） */
+    @Resource
+    private MqttCommandRecordMapper mqttCommandRecordMapper;
+
     private final ConcurrentHashMap<String, Long> processedMessageIds = new ConcurrentHashMap<>();
 
-    /**
-     * 判断该 messageId 是否已处理过。
-     *
-     * @param messageId 消息 ID
-     * @return true 表示已处理
-     */
     public boolean isProcessed(String messageId) {
         if (messageId == null || messageId.isEmpty()) {
             return false;
         }
+        long now = System.currentTimeMillis();
+        // 先查内存缓存（加速层）
         Long firstSeenAt = processedMessageIds.get(messageId);
-        if (firstSeenAt == null) {
+        if (firstSeenAt != null) {
+            if (isExpired(firstSeenAt, now)) {
+                processedMessageIds.remove(messageId, firstSeenAt);
+            } else {
+                return true;
+            }
+        }
+        // 查 DB（持久层）
+        try {
+            MqttCommandRecord record = mqttCommandRecordMapper.selectByMessageId(messageId);
+            if (record == null) {
+                return false;
+            }
+            if (isDbExpired(record)) {
+                mqttCommandRecordMapper.deleteById(record.getId());
+                return false;
+            }
+            // 回填内存缓存
+            processedMessageIds.putIfAbsent(messageId, toEpochMilli(record.getFirstSeenAt()));
+            return true;
+        } catch (Exception e) {
+            log.warn("[CMD] query command record from DB failed, fallback to memory only: messageId={}, error={}",
+                    messageId, e.getMessage());
             return false;
         }
-        if (isExpired(firstSeenAt, System.currentTimeMillis())) {
-            processedMessageIds.remove(messageId, firstSeenAt);
-            return false;
-        }
-        return true;
     }
 
-    /**
-     * 标记 messageId 为已处理。
-     *
-     * @param messageId 消息 ID
-     * @return true 表示本次为首次标记（之前不存在）；false 表示已存在
-     */
     public boolean markProcessed(String messageId) {
         if (messageId == null || messageId.isEmpty()) {
             return false;
         }
+        // 内存先标记
         Long prev = processedMessageIds.putIfAbsent(messageId, System.currentTimeMillis());
-        return prev == null;
+        if (prev != null) {
+            return false;
+        }
+        // DB 唯一键插入
+        try {
+            LocalDateTime now = LocalDateTime.now();
+            long ttlMs = Math.max(60000L, properties.getCommandDedupTtlMs());
+            MqttCommandRecord record = new MqttCommandRecord();
+            record.setMessageId(messageId);
+            record.setFirstSeenAt(now);
+            record.setExpireAt(now.plus(ttlMs, ChronoUnit.MILLIS));
+            record.setStatus("PROCESSING");
+            record.setCreatedAt(now);
+            record.setUpdatedAt(now);
+            mqttCommandRecordMapper.insert(record);
+            return true;
+        } catch (DuplicateKeyException e) {
+            // 唯一键冲突，说明重复消息
+            return false;
+        } catch (Exception e) {
+            log.warn("[CMD] insert command record to DB failed, keep memory-only dedup: messageId={}, error={}",
+                    messageId, e.getMessage());
+            // DB 失败但内存已标记，仍允许处理
+            return true;
+        }
     }
 
-    /**
-     * 当前已记录的消息数量。
-     *
-     * @return 已处理 messageId 数量
-     */
     public int processedCount() {
         return processedMessageIds.size();
     }
 
-    /**
-     * 定期清理过期幂等记录，避免长期运行内存无限增长。
-     */
     @Scheduled(fixedDelayString = "${mqtt-agent.dedup-cleanup-interval-ms:600000}")
     public void cleanupExpiredRecords() {
         long now = System.currentTimeMillis();
-        int removed = 0;
+        // 清理内存
+        int memoryRemoved = 0;
         for (Map.Entry<String, Long> entry : processedMessageIds.entrySet()) {
             Long firstSeenAt = entry.getValue();
             if (firstSeenAt != null && isExpired(firstSeenAt, now)
                     && processedMessageIds.remove(entry.getKey(), firstSeenAt)) {
-                removed++;
+                memoryRemoved++;
             }
         }
-        if (removed > 0) {
-            log.info("[CMD] 已清理过期幂等记录: removed={}, remaining={}",
-                    removed, processedMessageIds.size());
+        // 清理 DB
+        int dbRemoved = 0;
+        try {
+            dbRemoved = mqttCommandRecordMapper.deleteExpiredRecords(LocalDateTime.now());
+        } catch (Exception e) {
+            log.warn("[CMD] cleanup expired DB command records failed: error={}", e.getMessage());
+        }
+        if (memoryRemoved > 0 || dbRemoved > 0) {
+            log.info("[CMD] cleaned expired MQTT command records: memoryRemoved={}, dbRemoved={}, remaining={}",
+                    memoryRemoved, dbRemoved, processedMessageIds.size());
         }
     }
 
     private boolean isExpired(long firstSeenAt, long now) {
         long ttlMs = Math.max(60000L, properties.getCommandDedupTtlMs());
         return now - firstSeenAt > ttlMs;
+    }
+
+    private boolean isDbExpired(MqttCommandRecord record) {
+        if (record.getExpireAt() == null) {
+            return false;
+        }
+        return record.getExpireAt().isBefore(LocalDateTime.now());
+    }
+
+    private long toEpochMilli(LocalDateTime ldt) {
+        if (ldt == null) {
+            return System.currentTimeMillis();
+        }
+        return ldt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
     }
 }

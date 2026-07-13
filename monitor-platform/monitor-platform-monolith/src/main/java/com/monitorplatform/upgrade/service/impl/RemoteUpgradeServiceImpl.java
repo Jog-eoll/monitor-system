@@ -70,7 +70,7 @@ public class RemoteUpgradeServiceImpl implements RemoteUpgradeService {
     @Resource
     private MinioClient minioClient;
 
-    @Value("${minio.bucket-name:monitor-platform}")
+    @Value("${minio.bucket-name:monitor-content}")
     private String minioBucketName;
 
     @Value("${minio.endpoint:http://127.0.0.1:9000}")
