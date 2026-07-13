@@ -131,7 +131,7 @@ Content-Type: application/json;charset=UTF-8
 | `requestId` | string | 是 | 本次发布请求 ID，需支持幂等 |
 | `sigmaBaseUrl` | string | 是 | Sigma 接口根地址 |
 | `playlistId` | string | 否 | 待播放列表 ID；为空时客户端调用 Sigma 获取 |
-| `timeoutMs` | integer | 否 | 整体超时时间，默认 `300000` |
+| `timeoutMs` | integer | 否 | 整体超时时间，默认 `600000` |
 
 #### 请求示例
 
@@ -140,7 +140,7 @@ Content-Type: application/json;charset=UTF-8
   "requestId": "SIGMA-PUBLISH-20260612-000001",
   "sigmaBaseUrl": "http://127.0.0.1:18080/api/secure-publish",
   "playlistId": "SIGMA-PLAYLIST-20260612-000001",
-  "timeoutMs": 300000
+  "timeoutMs": 600000
 }
 ```
 

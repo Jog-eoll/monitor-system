@@ -21,7 +21,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import javax.annotation.Resource;
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URLEncoder;
@@ -85,6 +84,7 @@ public class ContentPublishServiceImpl implements ContentPublishService {
 
             QingsongProgramResponse.ProgramData program =
                     sigmaApiClient.getProgramByIp(request.getSigmaBaseUrl(), ip);
+            QingsongPlaylistDurationNormalizer.normalizeVideoDuration(program);
             String programError = validateProgram(program, ip);
             if (programError != null) {
                 log.warn("[内容发布] 节目单校验失败: requestId={}, reason={}", requestId, programError);
@@ -350,18 +350,18 @@ public class ContentPublishServiceImpl implements ContentPublishService {
             if (!hasText(item.getFileHash())) {
                 throw new IllegalStateException("节目文件缺少 fileHash: " + item.getFileName());
             }
-            byte[] content = download(item.getFileUrl());
-            String actualHash = sha256Hex(content);
+            FileVerification verification = verifyProgramFile(item.getFileUrl());
+            String actualHash = verification.getSha256();
             if (!actualHash.equalsIgnoreCase(item.getFileHash().trim())) {
                 throw new IllegalStateException("节目文件 Hash 不匹配: " + item.getFileName()
                         + ", expected=" + item.getFileHash() + ", actual=" + actualHash);
             }
             log.info("[内容发布] 节目文件校验通过: orderNo={}, fileName={}, size={}",
-                    item.getOrderNo(), item.getFileName(), content.length);
+                    item.getOrderNo(), item.getFileName(), verification.getSizeBytes());
         }
     }
 
-    private byte[] download(String fileUrl) throws Exception {
+    private FileVerification verifyProgramFile(String fileUrl) throws Exception {
         HttpURLConnection connection = null;
         try {
             connection = (HttpURLConnection) new URL(fileUrl).openConnection();
@@ -372,24 +372,26 @@ public class ContentPublishServiceImpl implements ContentPublishService {
             if (status < 200 || status >= 300) {
                 throw new IllegalStateException("下载节目文件失败: url=" + fileUrl + ", status=" + status);
             }
-            int maxBytes = Math.max(1, maxFileSizeMb) * 1024 * 1024;
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            InputStream input = connection.getInputStream();
-            try {
+            long maxBytes = maxFileSizeBytes();
+            long declaredLength = connection.getContentLengthLong();
+            if (declaredLength > maxBytes) {
+                throw new IllegalStateException("节目文件超过大小限制: " + fileUrl);
+            }
+
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            long total = 0L;
+            try (InputStream input = connection.getInputStream()) {
                 byte[] buffer = new byte[8192];
-                int total = 0;
                 int read;
                 while ((read = input.read(buffer)) != -1) {
                     total += read;
                     if (total > maxBytes) {
                         throw new IllegalStateException("节目文件超过大小限制: " + fileUrl);
                     }
-                    output.write(buffer, 0, read);
+                    digest.update(buffer, 0, read);
                 }
-            } finally {
-                input.close();
             }
-            return output.toByteArray();
+            return new FileVerification(hex(digest.digest()), total);
         } finally {
             if (connection != null) {
                 connection.disconnect();
@@ -397,14 +399,34 @@ public class ContentPublishServiceImpl implements ContentPublishService {
         }
     }
 
-    private String sha256Hex(byte[] content) throws Exception {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] hash = digest.digest(content);
+    private long maxFileSizeBytes() {
+        return Math.max(1L, (long) maxFileSizeMb) * 1024L * 1024L;
+    }
+
+    private String hex(byte[] hash) {
         StringBuilder sb = new StringBuilder(hash.length * 2);
         for (byte b : hash) {
             sb.append(String.format("%02x", b & 0xff));
         }
         return sb.toString();
+    }
+
+    private static final class FileVerification {
+        private final String sha256;
+        private final long sizeBytes;
+
+        private FileVerification(String sha256, long sizeBytes) {
+            this.sha256 = sha256;
+            this.sizeBytes = sizeBytes;
+        }
+
+        private String getSha256() {
+            return sha256;
+        }
+
+        private long getSizeBytes() {
+            return sizeBytes;
+        }
     }
 
     private String validateProgram(QingsongProgramResponse.ProgramData program, String requestedIp) {

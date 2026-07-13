@@ -9,14 +9,24 @@ import com.infopublish.client.entity.dto.precheck.PrecheckResponse;
 import com.infopublish.client.entity.dto.publish.ContentPublishRequest;
 import com.infopublish.client.entity.dto.publish.ContentPublishResponse;
 import com.infopublish.client.service.ContentPublishService;
+import com.infopublish.client.service.ContentPublishV2Service;
 import com.infopublish.client.service.InfoBoardStatusService;
 import com.infopublish.client.service.PublishPrecheckService;
+import com.infopublish.client.service.PublishPrecheckV2Service;
 import com.infopublish.client.service.SigmaPublishService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 import javax.annotation.Resource;
 import javax.validation.Valid;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 信发平台安全发布控制器
@@ -44,7 +54,13 @@ public class SigmaPublishController {
     private PublishPrecheckService publishPrecheckService;
 
     @Resource
+    private PublishPrecheckV2Service publishPrecheckV2Service;
+
+    @Resource
     private ContentPublishService contentPublishService;
+
+    @Resource
+    private ContentPublishV2Service contentPublishV2Service;
 
     @Resource
     private InfoBoardStatusService infoBoardStatusService;
@@ -79,6 +95,18 @@ public class SigmaPublishController {
         }
     }
 
+    @PostMapping("/publish/precheckV2")
+    public PrecheckResponse precheckV2(@Valid @RequestBody PrecheckRequest request) {
+        log.info("[自研发布] precheckV2 转发: requestId={}", request.getRequestId());
+        try {
+            return publishPrecheckV2Service.precheckV2(request);
+        } catch (Exception e) {
+            log.error("[自研发布] precheckV2 异常: requestId={}, error={}",
+                    request.getRequestId(), e.getMessage(), e);
+            return PrecheckResponse.error("precheckV2 接口异常: " + e.getMessage(), request.getRequestId());
+        }
+    }
+
     /**
      * 兼容旧版：单独签发 publishPermit
      */
@@ -92,6 +120,21 @@ public class SigmaPublishController {
                     request.getRequestId(), e.getMessage(), e);
             return ContentPublishResponse.error(request.getRequestId(),
                     "PUBLISH_EXECUTE_FAILED", "publish execute 接口异常: " + e.getMessage());
+        }
+    }
+
+    @PostMapping(value = "/publish/executeV2", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ContentPublishResponse publishV2(MultipartHttpServletRequest request) {
+        String baseJson = null;
+        try {
+            baseJson = readPart(request, "base");
+            String playlistJson = readPart(request, "playlist");
+            MultipartFile[] files = extractPublishFiles(request);
+            return contentPublishV2Service.publish(baseJson, playlistJson, files);
+        } catch (Exception e) {
+            log.error("[Sigma publish] executeV2 error: {}", e.getMessage(), e);
+            return ContentPublishResponse.error(null,
+                    "PUBLISH_EXECUTE_V2_FAILED", "publish executeV2 接口异常: " + e.getMessage());
         }
     }
 
@@ -109,5 +152,45 @@ public class SigmaPublishController {
                     request.getRequestId(), e.getMessage(), e);
             return SigmaVerifyResponse.fail("verify 接口异常: " + e.getMessage(), request.getRequestId());
         }
+    }
+
+    private String readPart(MultipartHttpServletRequest request, String name) throws Exception {
+        String parameter = request.getParameter(name);
+        if (parameter != null && !parameter.trim().isEmpty()) {
+            return parameter;
+        }
+        MultipartFile file = request.getFile(name);
+        if (file == null || file.isEmpty()) {
+            return null;
+        }
+        InputStream input = file.getInputStream();
+        try {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                output.write(buffer, 0, read);
+            }
+            return new String(output.toByteArray(), StandardCharsets.UTF_8);
+        } finally {
+            input.close();
+        }
+    }
+
+    private MultipartFile[] extractPublishFiles(MultipartHttpServletRequest request) {
+        List<MultipartFile> files = new ArrayList<>();
+        for (List<MultipartFile> partFiles : request.getMultiFileMap().values()) {
+            for (MultipartFile file : partFiles) {
+                if (file == null || file.isEmpty()) {
+                    continue;
+                }
+                String name = file.getName();
+                if ("base".equals(name) || "playlist".equals(name)) {
+                    continue;
+                }
+                files.add(file);
+            }
+        }
+        return files.toArray(new MultipartFile[0]);
     }
 }

@@ -1,6 +1,9 @@
 ﻿
 server:
-  port: 7080
+  port: 7081
+  tomcat:
+    max-http-form-post-size: 2300MB
+    max-swallow-size: -1
 
 client:
   log:
@@ -10,8 +13,9 @@ client:
 spring:
   servlet:
     multipart:
-      max-file-size: 500MB
-      max-request-size: 1000MB
+      max-file-size: 2048MB
+      max-request-size: 2300MB
+      file-size-threshold: 0B
 
 security:
   gateway-source-validation-enabled: false
@@ -129,16 +133,20 @@ precheck:
 
 # ========== 控制指令（Sigma 对接） ==========
 control-command:
-  gateway-url: ${CONTROL_COMMAND_GATEWAY_URL:http://192.168.113.10:8092}
+  gateway-url: ${CONTROL_COMMAND_GATEWAY_URL:http://192.168.1.25:8092}
 
 http-client:
   connect-timeout-ms: ${HTTP_CLIENT_CONNECT_TIMEOUT_MS:10000}
   read-timeout-ms: ${HTTP_CLIENT_READ_TIMEOUT_MS:120000}
 
 content-publish:
-  gateway-url: ${CONTENT_PUBLISH_GATEWAY_URL:${control-command.gateway-url:http://192.168.113.10:8092}}
+  gateway-url: ${CONTENT_PUBLISH_GATEWAY_URL:${control-command.gateway-url:http://192.168.1.25:8092}}
   download-timeout-ms: ${CONTENT_PUBLISH_DOWNLOAD_TIMEOUT_MS:120000}
-  max-file-size-mb: ${CONTENT_PUBLISH_MAX_FILE_SIZE_MB:50}
+  max-file-size-mb: ${CONTENT_PUBLISH_MAX_FILE_SIZE_MB:2048}
+  v2:
+    file-download-base-url: ${CONTENT_PUBLISH_V2_FILE_DOWNLOAD_BASE_URL:http://192.168.1.168:7081}
+    max-file-size-mb: ${CONTENT_PUBLISH_V2_MAX_FILE_SIZE_MB:2048}
+    temp-file-ttl-ms: ${CONTENT_PUBLISH_V2_TEMP_FILE_TTL_MS:900000}
 
 info-board:
   status:

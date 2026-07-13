@@ -12,6 +12,7 @@ import com.infopublish.client.service.ClientAuthService;
 import com.infopublish.client.service.GatewayService;
 import com.infopublish.client.service.ProcessBindService;
 import com.infopublish.client.service.PublishPrecheckService;
+import com.infopublish.client.service.PublishPrecheckV2Service;
 import com.infopublish.client.service.SigmaApiClient;
 import com.infopublish.client.service.SigmaPublishService;
 import com.infopublish.client.service.UkeyLifecycleManager;
@@ -37,7 +38,7 @@ import java.util.concurrent.TimeoutException;
  */
 @Slf4j
 @Service
-public class PublishPrecheckServiceImpl implements PublishPrecheckService {
+public class PublishPrecheckServiceImpl implements PublishPrecheckService, PublishPrecheckV2Service {
 
     @Value("${precheck.enabled:true}")
     private boolean precheckEnabled;
@@ -64,42 +65,55 @@ public class PublishPrecheckServiceImpl implements PublishPrecheckService {
     private SigmaPublishService sigmaPublishService;
 
     private final ConcurrentHashMap<String, PrecheckResponse> idempotentCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, PrecheckResponse> v2IdempotentCache = new ConcurrentHashMap<>();
 
     @Override
     public PrecheckResponse precheck(PrecheckRequest request) {
-        String requestId = request.getRequestId();
-        log.info("[预检查] 开始 precheck: requestId={}, sigmaBaseUrl={}, playlistId={}",
-                requestId, request.getSigmaBaseUrl(), request.getPlaylistId());
+        return precheckInternal(request, false, idempotentCache);
+    }
 
-        PrecheckResponse cached = idempotentCache.get(requestId);
+    @Override
+    public PrecheckResponse precheckV2(PrecheckRequest request) {
+        return precheckInternal(request, true, v2IdempotentCache);
+    }
+
+    private PrecheckResponse precheckInternal(PrecheckRequest request, boolean v2,
+                                              ConcurrentHashMap<String, PrecheckResponse> cache) {
+        String requestId = request.getRequestId();
+        String label = v2 ? "precheckV2" : "precheck";
+        log.info("[预检查] 开始 {}: requestId={}, sigmaBaseUrl={}, playlistId={}",
+                label, requestId, request.getSigmaBaseUrl(), request.getPlaylistId());
+
+        PrecheckResponse cached = cache.get(requestId);
         if (cached != null) {
-            log.info("[预检查] 命中幂等缓存: requestId={}", requestId);
+            log.info("[预检查] 命中{}幂等缓存: requestId={}", v2 ? "V2" : "", requestId);
             return cached;
         }
 
         int timeoutMs = request.getEffectiveTimeoutMs();
         ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            Future<PrecheckResponse> future = executor.submit(() -> doPrecheck(request));
+            Future<PrecheckResponse> future = executor.submit(() -> doPrecheck(request, v2));
             PrecheckResponse response = attachInfoBoardInfo(request, future.get(timeoutMs, TimeUnit.MILLISECONDS));
-            cacheIfStable(requestId, response);
+            cacheIfStable(cache, requestId, response);
             return response;
         } catch (TimeoutException e) {
-            log.error("[预检查] 整体超时: requestId={}, timeoutMs={}", requestId, timeoutMs);
+            log.error("[预检查] {} 整体超时: requestId={}, timeoutMs={}", label, requestId, timeoutMs);
             PrecheckResponse response = PrecheckResponse.error("处理超时", requestId);
             return response;
         } catch (Exception e) {
-            log.error("[预检查] 执行异常: requestId={}, error={}", requestId, e.getMessage(), e);
-            PrecheckResponse response = PrecheckResponse.error("预检查执行异常: " + e.getMessage(), requestId);
+            log.error("[预检查] {} 执行异常: requestId={}, error={}", label, requestId, e.getMessage(), e);
+            PrecheckResponse response = PrecheckResponse.error(label + " 执行异常: " + e.getMessage(), requestId);
             return response;
         } finally {
             executor.shutdownNow();
         }
     }
 
-    private void cacheIfStable(String requestId, PrecheckResponse response) {
+    private void cacheIfStable(ConcurrentHashMap<String, PrecheckResponse> cache,
+                               String requestId, PrecheckResponse response) {
         if (response != null && response.isSuccess()) {
-            idempotentCache.put(requestId, response);
+            cache.put(requestId, response);
             return;
         }
         log.info("[预检查] 跳过错误响应幂等缓存: requestId={}", requestId);
@@ -116,7 +130,7 @@ public class PublishPrecheckServiceImpl implements PublishPrecheckService {
         return response;
     }
 
-    private PrecheckResponse doPrecheck(PrecheckRequest request) {
+    private PrecheckResponse doPrecheck(PrecheckRequest request, boolean v2) {
         String requestId = request.getRequestId();
 
         if (!precheckEnabled) {
@@ -132,12 +146,15 @@ public class PublishPrecheckServiceImpl implements PublishPrecheckService {
         }
         log.info("[预检查] 基础检查全部通过: requestId={}", requestId);
 
-        QingsongProgramResponse.ProgramData program = resolveProgram(request);
+        QingsongProgramResponse.ProgramData program = resolveProgram(request, v2);
+        if (!v2) {
+            QingsongPlaylistDurationNormalizer.normalizeVideoDuration(program);
+        }
         String infoBoardIp = resolveInfoBoardIp(request);
-        String validationError = validateProgram(program, infoBoardIp);
+        String validationError = validateProgram(program, infoBoardIp, v2);
         if (validationError != null) {
-            log.warn("[预检查] 青松节目单校验失败: requestId={}, ip={}, reason={}",
-                    requestId, infoBoardIp, validationError);
+            log.warn("[预检查] {}节目单校验失败: requestId={}, ip={}, reason={}",
+                    v2 ? "V2" : "青松", requestId, infoBoardIp, validationError);
             return PrecheckResponse.error(validationError, requestId);
         }
 
@@ -150,7 +167,7 @@ public class PublishPrecheckServiceImpl implements PublishPrecheckService {
         return response;
     }
 
-    private QingsongProgramResponse.ProgramData resolveProgram(PrecheckRequest request) {
+    private QingsongProgramResponse.ProgramData resolveProgram(PrecheckRequest request, boolean v2) {
         if (request != null
                 && hasText(request.getPlaylistId())
                 && request.getTarget() != null
@@ -164,6 +181,10 @@ public class PublishPrecheckServiceImpl implements PublishPrecheckService {
             log.info("[预检查] 使用请求中已有节目单: requestId={}, playlistId={}, items={}",
                     request.getRequestId(), request.getPlaylistId(), request.getItems().size());
             return program;
+        }
+
+        if (v2) {
+            return null;
         }
 
         String infoBoardIp = resolveInfoBoardIp(request);
@@ -180,44 +201,46 @@ public class PublishPrecheckServiceImpl implements PublishPrecheckService {
         return trimToNull(request.getTarget().getIp());
     }
 
-    private String validateProgram(QingsongProgramResponse.ProgramData program, String requestedIp) {
+    private String validateProgram(QingsongProgramResponse.ProgramData program, String requestedIp,
+                                   boolean v2) {
+        String sourceName = v2 ? "V2节目单" : "青松节目单";
         if (program == null) {
-            return "获取青松节目单失败";
+            return v2 ? "V2节目单不能为空" : "获取青松节目单失败";
         }
         if (!hasText(program.getPlaylistId())) {
-            return "青松节目单 playlistId 为空";
+            return sourceName + " playlistId 为空";
         }
         if (program.getTarget() == null) {
-            return "青松节目单 target 为空";
+            return sourceName + " target 为空";
         }
         if (!hasText(program.getTarget().getIp())) {
-            return "青松节目单 target.ip 为空";
+            return sourceName + " target.ip 为空";
         }
         if (!program.getTarget().getIp().trim().equals(requestedIp)) {
-            return "青松节目单 target.ip 与请求 IP 不一致";
+            return sourceName + " target.ip 与请求 IP 不一致";
         }
         if (program.getItems() == null || program.getItems().isEmpty()) {
-            return "青松节目单 items 为空";
+            return sourceName + " items 为空";
         }
         for (int i = 0; i < program.getItems().size(); i++) {
             SigmaVerifyRequest.PlaylistItem item = program.getItems().get(i);
             if (item == null) {
-                return "青松节目单 items[" + i + "] 为空";
+                return sourceName + " items[" + i + "] 为空";
             }
             if (item.getOrderNo() == null) {
-                return "青松节目单 items[" + i + "].orderNo 为空";
+                return sourceName + " items[" + i + "].orderNo 为空";
             }
             if (!hasText(item.getFileName())) {
-                return "青松节目单 items[" + i + "].fileName 为空";
+                return sourceName + " items[" + i + "].fileName 为空";
             }
             if (!hasText(item.getFileType())) {
-                return "青松节目单 items[" + i + "].fileType 为空";
+                return sourceName + " items[" + i + "].fileType 为空";
             }
             if (!hasText(item.getFileUrl())) {
-                return "青松节目单 items[" + i + "].fileUrl 为空";
+                return sourceName + " items[" + i + "].fileUrl 为空";
             }
             if (item.getDurationSeconds() == null || item.getDurationSeconds() <= 0) {
-                return "青松节目单 items[" + i + "].durationSeconds 无效";
+                return sourceName + " items[" + i + "].durationSeconds 无效";
             }
         }
         return null;

@@ -188,17 +188,26 @@ public class SigmaPublishServiceImpl implements SigmaPublishService {
         }
         try {
             DiagnosticLogReport report = new DiagnosticLogReport();
+            report.setTraceId(request != null ? defaultStr(request.getRequestId(), "") : "");
             report.setEventType("CLIENT_PUBLISH_PERMIT_SIGNED");
             report.setEventLevel(errorMessage != null ? "error" : "info");
+            report.setStage("client");
+            report.setContentId(request != null ? defaultStr(request.getPlaylistId(), "") : "");
+            report.setSignStatus(errorMessage != null ? "fail" : "success");
             report.setResultStatus(errorMessage != null ? "fail" : "success");
             report.setOperatorId(defaultStr(operatorId, permitIssuer));
             report.setOperatorName(defaultStr(operatorId, permitIssuer));
+            if (request != null && request.getTarget() != null) {
+                report.setBoardIp(request.getTarget().getIp());
+                report.setBoardPort(request.getTarget().getPort());
+            }
             report.setSummary(errorMessage != null ? "签发发布许可失败" : "签发发布许可成功");
             report.setErrorMessage(errorMessage);
 
             Map<String, Object> detail = new LinkedHashMap<>();
             detail.put("jti", defaultStr(jti, ""));
             detail.put("requestId", request != null ? defaultStr(request.getRequestId(), "") : "");
+            detail.put("playlistId", request != null ? defaultStr(request.getPlaylistId(), "") : "");
             detail.put("playlistDigest", defaultStr(playlistDigest, ""));
             if (request != null && request.getOperatorId() != null) {
                 detail.put("operatorId", request.getOperatorId());

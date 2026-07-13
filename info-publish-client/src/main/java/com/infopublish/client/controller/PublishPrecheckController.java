@@ -3,6 +3,7 @@ package com.infopublish.client.controller;
 import com.infopublish.client.entity.dto.precheck.PrecheckRequest;
 import com.infopublish.client.entity.dto.precheck.PrecheckResponse;
 import com.infopublish.client.service.PublishPrecheckService;
+import com.infopublish.client.service.PublishPrecheckV2Service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,6 +29,9 @@ public class PublishPrecheckController {
     @Resource
     private PublishPrecheckService publishPrecheckService;
 
+    @Resource
+    private PublishPrecheckV2Service publishPrecheckV2Service;
+
     /**
      * 发布前预检查和发布许可签发
      * <p>
@@ -52,6 +56,23 @@ public class PublishPrecheckController {
             log.error("[预检查接口] precheck 异常: requestId={}, error={}",
                     request.getRequestId(), e.getMessage(), e);
             return PrecheckResponse.error("预检查接口异常: " + e.getMessage(), request.getRequestId());
+        }
+    }
+
+    @PostMapping("/precheckV2")
+    public PrecheckResponse precheckV2(@Valid @RequestBody PrecheckRequest request) {
+        log.info("[预检查接口] 收到 precheckV2 请求: requestId={}, playlistId={}",
+                request.getRequestId(), request.getPlaylistId());
+
+        try {
+            PrecheckResponse response = publishPrecheckV2Service.precheckV2(request);
+            log.info("[预检查接口] precheckV2 完成: requestId={}, publishAllowed={}, result={}",
+                    request.getRequestId(), response.isPublishAllowed(), response.getResult());
+            return response;
+        } catch (Exception e) {
+            log.error("[预检查接口] precheckV2 异常: requestId={}, error={}",
+                    request.getRequestId(), e.getMessage(), e);
+            return PrecheckResponse.error("precheckV2 接口异常: " + e.getMessage(), request.getRequestId());
         }
     }
 }
