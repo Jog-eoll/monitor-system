@@ -8,8 +8,12 @@ import com.publishgateway.udpproxy.entity.dto.delivery.DeliveryTaskStatus;
 import com.publishgateway.udpproxy.entity.dto.delivery.SecureDeliveryTaskRequest;
 import com.publishgateway.udpproxy.entity.dto.delivery.SecureDeliveryTaskResponse;
 import com.publishgateway.udpproxy.entity.dto.secure.*;
+import com.publishgateway.udpproxy.log.DiagnosticLogReport;
+import com.publishgateway.udpproxy.log.DiagnosticLogReporter;
 import com.publishgateway.udpproxy.service.CryptoService;
+import com.publishgateway.udpproxy.service.DataReportService;
 import com.publishgateway.udpproxy.service.SecureDeliveryService;
+import com.publishgateway.udpproxy.service.SecurePublishDeliveredFile;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -49,6 +53,12 @@ public class SecureDeliveryServiceImpl implements SecureDeliveryService {
     @Resource
     private SecureDeliveryEnvelopeProperties envelopeProperties;
 
+    @Resource
+    private DiagnosticLogReporter diagnosticLogReporter;
+
+    @Resource
+    private DataReportService dataReportService;
+
     @Value("${secure-delivery.permit.hmac-secret:change-me-in-production}")
     private String hmacSecret;
 
@@ -60,6 +70,9 @@ public class SecureDeliveryServiceImpl implements SecureDeliveryService {
 
     @Value("${secure-delivery.download.max-file-size-mb:50}")
     private int maxFileSizeMb;
+
+    @Value("${secure-delivery.large-file.file-ref-enabled:true}")
+    private boolean largeFileRefEnabled;
 
     /** v1 进程内任务状态存储 */
     private final ConcurrentHashMap<String, DeliveryTaskStatus> taskStore = new ConcurrentHashMap<>();
@@ -89,10 +102,14 @@ public class SecureDeliveryServiceImpl implements SecureDeliveryService {
 
         String permitPayload = verifyJwt(plainRequest.getPublishPermit());
         if (permitPayload == null) {
+            reportPlaylistVerification(plainRequest, null, false,
+                    "PUBLISH_PERMIT_VERIFY_FAILED", "publishPermit 验签失败", null);
             return SecureDeliveryTaskResponse.error("publishPermit 验签失败");
         }
         String permitError = validatePermitClaims(plainRequest, permitPayload);
         if (permitError != null) {
+            reportPlaylistVerification(plainRequest, permitPayload, false,
+                    "PUBLISH_PERMIT_CLAIMS_INVALID", permitError, null);
             return SecureDeliveryTaskResponse.error(permitError);
         }
 
@@ -105,6 +122,8 @@ public class SecureDeliveryServiceImpl implements SecureDeliveryService {
         status.setUpdatedAt(System.currentTimeMillis());
         status.setTotalFiles(plainRequest.getFiles() != null ? plainRequest.getFiles().size() : 0);
         taskStore.put(taskId, status);
+        reportSecurePublishContent(plainRequest);
+        reportPlaylistVerification(plainRequest, permitPayload, true, null, null, taskId);
 
         // 异步执行投递
         executor.submit(() -> executeDelivery(taskId, plainRequest));
@@ -134,19 +153,34 @@ public class SecureDeliveryServiceImpl implements SecureDeliveryService {
         try {
             // 2. 下载文件
             List<StandardizedPublishPackage.FileEntry> fileEntries = new ArrayList<>();
+            List<SecurePublishDeliveredFile> deliveredFiles = new ArrayList<>();
             if (request.getFiles() != null) {
                 for (SecureDeliveryTaskRequest.FileRef ref : request.getFiles()) {
+                    if (shouldUseFileRef(ref)) {
+                        StandardizedPublishPackage.FileEntry entry = buildFileRefEntry(ref);
+                        fileEntries.add(entry);
+                        deliveredFiles.add(new SecurePublishDeliveredFile(ref, null, ref.getFileHash()));
+                        status.setDownloadedFiles(status.getDownloadedFiles() + 1);
+                        continue;
+                    }
                     byte[] data = downloadFile(ref.getFileUrl());
                     if (data == null) {
                         throw new RuntimeException("文件下载失败: " + ref.getFileUrl());
                     }
                     // 校验 hash（可选）
+                    String actualHash = null;
                     if (ref.getFileHash() != null && !ref.getFileHash().isEmpty()) {
-                        String actualHash = sha256Hex(data);
+                        actualHash = sha256Hex(data);
                         if (!ref.getFileHash().equalsIgnoreCase(actualHash)) {
+                            String error = "文件 hash 不匹配: " + ref.getFileName()
+                                    + " expected=" + ref.getFileHash() + " actual=" + actualHash;
+                            reportPlaylistItemVerification(taskId, request, ref, actualHash,
+                                    data.length, false, "PLAYLIST_ITEM_HASH_MISMATCH", error);
                             throw new RuntimeException("文件 hash 不匹配: " + ref.getFileName()
                                     + " expected=" + ref.getFileHash() + " actual=" + actualHash);
                         }
+                        reportPlaylistItemVerification(taskId, request, ref, actualHash,
+                                data.length, true, null, null);
                     }
                     StandardizedPublishPackage.FileEntry entry = new StandardizedPublishPackage.FileEntry();
                     entry.setOrderNo(ref.getOrderNo());
@@ -156,6 +190,7 @@ public class SecureDeliveryServiceImpl implements SecureDeliveryService {
                     entry.setDurationSeconds(ref.getDurationSeconds());
                     entry.setFileHash(ref.getFileHash());
                     fileEntries.add(entry);
+                    deliveredFiles.add(new SecurePublishDeliveredFile(ref, data, actualHash));
                     status.setDownloadedFiles(status.getDownloadedFiles() + 1);
                 }
             }
@@ -225,12 +260,16 @@ public class SecureDeliveryServiceImpl implements SecureDeliveryService {
                         taskId, request.getRequestId(), cryptoService.getSvacModuleStatus());
                 return;
             }
-            deliverToTerminal(taskId, request.getRequestId(), encrypted, status);
+            deliverToTerminal(taskId, request, encrypted, status);
+            reportSecurePublishDeliveredContent(taskId, request, deliveredFiles);
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
             String errorMsg = e.getMessage();
             boolean isTimeout = errorMsg != null && errorMsg.startsWith("TIMEOUT:");
             status.setStatus(isTimeout ? "TIMEOUT" : "FAILED");
+            if (errorMsg == null || errorMsg.trim().isEmpty()) {
+                errorMsg = e.getClass().getSimpleName();
+            }
             status.setMessage(isTimeout ? ("解密网关请求超时: " + errorMsg) : errorMsg);
             log.error("[安全投递] 任务失败: taskId={}, status={}, error={}",
                     taskId, status.getStatus(), errorMsg, e);
@@ -242,11 +281,15 @@ public class SecureDeliveryServiceImpl implements SecureDeliveryService {
     /**
      * 投递到解密网关，使用 SecureTerminalClient + SecureGatewayAckParser
      */
-    private void deliverToTerminal(String taskId, String requestId, byte[] encryptedPayload, DeliveryTaskStatus status) {
+    private void deliverToTerminal(String taskId, SecureDeliveryTaskRequest request, byte[] encryptedPayload, DeliveryTaskStatus status) {
+        String requestId = request != null ? request.getRequestId() : null;
         ResponseEntity<String> response = secureTerminalClient.postPublish(
                 terminalGatewayUrl, encryptedPayload, requestId, taskId);
 
         if (!response.getStatusCode().is2xxSuccessful()) {
+            reportAckSummary(taskId, request, null, false,
+                    "TERMINAL_GATEWAY_HTTP_FAILED",
+                    "解密网关投递失败 HTTP " + response.getStatusCodeValue());
             throw new RuntimeException("解密网关投递失败: HTTP " + response.getStatusCodeValue()
                     + " body=" + response.getBody());
         }
@@ -260,13 +303,248 @@ public class SecureDeliveryServiceImpl implements SecureDeliveryService {
         }
 
         if (ack.isTerminalFailure()) {
+            reportAckSummary(taskId, request, ack, false,
+                    firstNonBlank(ack.getCode(), ack.getStatus()), ack.getErrorMessage());
             throw new RuntimeException("解密网关执行失败: " + ack.getErrorMessage());
         }
 
         status.setDeliveredFiles(status.getDownloadedFiles());
         status.setStatus("SUCCESS");
+        reportAckSummary(taskId, request, ack, true, null, null);
         log.info("[安全投递] 解密网关已接收: taskId={}, requestId={}, orchestrationTaskId={}, accepted={}",
                 taskId, requestId, ack.getOrchestrationTaskId(), ack.getAccepted());
+    }
+
+    private void reportPlaylistVerification(SecureDeliveryTaskRequest request, String permitPayload,
+                                             boolean success, String errorCode,
+                                             String errorMessage, String taskId) {
+        if (diagnosticLogReporter == null) {
+            return;
+        }
+        try {
+            DiagnosticLogReport report = baseDiagnosticReport(request);
+            report.setEventType(success
+                    ? "SECURE_DELIVERY_PLAYLIST_VERIFIED"
+                    : "SECURE_DELIVERY_PLAYLIST_VERIFY_FAILED");
+            report.setEventLevel(success ? "info" : "error");
+            report.setVerifyStatus(success ? "success" : "fail");
+            report.setResultStatus(success ? "success" : "fail");
+            report.setSummary(success ? "发布清单验签通过" : "发布清单验签失败");
+            report.setErrorCode(errorCode);
+            report.setErrorMessage(errorMessage);
+            report.setRefTable("secure_delivery_task");
+            report.setRefId(firstNonBlank(taskId, request != null ? request.getRequestId() : null));
+
+            Map<String, Object> detail = baseDiagnosticDetail(taskId, request);
+            detail.put("checkType", "publishPermitSignatureAndPlaylistDigest");
+            if (permitPayload != null) {
+                JSONObject claims = JSON.parseObject(permitPayload);
+                detail.put("permitJti", claims.getString("jti"));
+                detail.put("permitIssuer", claims.getString("iss"));
+                detail.put("permitClientId", claims.getString("clientId"));
+                detail.put("permitExpireAt", claims.getLong("exp"));
+                detail.put("permitPlaylistDigest", claims.getString("playlistDigest"));
+            }
+            if (errorMessage != null) {
+                detail.put("error", errorMessage);
+            }
+            report.setDetailJson(JSON.toJSONString(detail));
+            report.setDedupKey(dedupKey("playlist-verify",
+                    request != null ? request.getRequestId() : null,
+                    playlistId(request),
+                    success ? "success" : "fail"));
+
+            diagnosticLogReporter.reportAsync(report);
+        } catch (Exception e) {
+            log.debug("[secure-delivery] report playlist verification failed: {}", e.getMessage());
+        }
+    }
+
+    private void reportPlaylistItemVerification(String taskId, SecureDeliveryTaskRequest request,
+                                                SecureDeliveryTaskRequest.FileRef ref,
+                                                String actualHash, int fileSize,
+                                                boolean success, String errorCode,
+                                                String errorMessage) {
+        if (diagnosticLogReporter == null) {
+            return;
+        }
+        try {
+            DiagnosticLogReport report = baseDiagnosticReport(request);
+            report.setEventType(success
+                    ? "SECURE_DELIVERY_PLAYLIST_ITEM_VERIFIED"
+                    : "SECURE_DELIVERY_PLAYLIST_ITEM_VERIFY_FAILED");
+            report.setEventLevel(success ? "info" : "error");
+            report.setVerifyStatus(success ? "success" : "fail");
+            report.setResultStatus(success ? "success" : "fail");
+            report.setSummary(success ? "发布清单验签通过" : "发布清单验签失败");
+            report.setErrorCode(errorCode);
+            report.setErrorMessage(errorMessage);
+            report.setRefTable("secure_delivery_file");
+            report.setRefId(ref != null ? firstNonBlank(ref.getFileHash(), ref.getFileName()) : null);
+
+            Map<String, Object> detail = baseDiagnosticDetail(taskId, request);
+            detail.put("checkType", "playlistItemHash");
+            if (ref != null) {
+                detail.put("orderNo", ref.getOrderNo());
+                detail.put("fileName", ref.getFileName());
+                detail.put("fileType", ref.getFileType());
+                detail.put("fileHash", ref.getFileHash());
+                detail.put("durationSeconds", ref.getDurationSeconds());
+            }
+            detail.put("actualHash", actualHash);
+            detail.put("fileSize", fileSize);
+            if (errorMessage != null) {
+                detail.put("error", errorMessage);
+            }
+            report.setDetailJson(JSON.toJSONString(detail));
+            report.setDedupKey(dedupKey("playlist-item-verify",
+                    request != null ? request.getRequestId() : null,
+                    playlistId(request),
+                    ref != null ? String.valueOf(ref.getOrderNo()) : null,
+                    ref != null ? firstNonBlank(ref.getFileHash(), ref.getFileName()) : null,
+                    success ? "success" : "fail"));
+
+            diagnosticLogReporter.reportAsync(report);
+        } catch (Exception e) {
+            log.debug("[secure-delivery] report playlist item verification failed: {}", e.getMessage());
+        }
+    }
+
+    private void reportAckSummary(String taskId, SecureDeliveryTaskRequest request,
+                                  SecureGatewayAck ack, boolean success,
+                                  String errorCode, String errorMessage) {
+        if (diagnosticLogReporter == null) {
+            return;
+        }
+        try {
+            DiagnosticLogReport report = baseDiagnosticReport(request);
+            report.setEventType("SECURE_DELIVERY_ACK_SUMMARY");
+            report.setEventLevel(success ? "info" : "error");
+            report.setResultStatus(success ? "success" : "fail");
+            report.setSummary(success ? "解密网关内容下发成功" : "解密网关内容下发失败");
+            report.setErrorCode(errorCode);
+            report.setErrorMessage(errorMessage);
+            report.setRefTable("secure_delivery_task");
+            report.setRefId(taskId);
+
+            Map<String, Object> detail = baseDiagnosticDetail(taskId, request);
+            detail.put("terminalGatewayUrl", terminalGatewayUrl);
+            if (ack != null) {
+                detail.put("accepted", ack.getAccepted());
+                detail.put("terminalStatus", ack.getStatus());
+                detail.put("terminalCode", ack.getCode());
+                detail.put("terminalMessage", ack.getMessage());
+                detail.put("outerCode", ack.getOuterCode());
+                detail.put("outerMsg", ack.getOuterMsg());
+                detail.put("terminalTaskId", ack.getTaskId());
+                detail.put("batchTaskId", ack.getBatchTaskId());
+                detail.put("orchestrationTaskId", ack.getOrchestrationTaskId());
+                detail.put("mappedCapability", ack.getMappedCapability());
+                detail.put("steps", ack.getSteps());
+            }
+            if (errorMessage != null) {
+                detail.put("error", errorMessage);
+            }
+            report.setDetailJson(JSON.toJSONString(detail));
+            report.setDedupKey(dedupKey("ack-summary",
+                    request != null ? request.getRequestId() : null,
+                    playlistId(request),
+                    taskId,
+                    success ? "success" : "fail"));
+
+            diagnosticLogReporter.reportAsync(report);
+        } catch (Exception e) {
+            log.debug("[secure-delivery] report ack summary failed: {}", e.getMessage());
+        }
+    }
+
+    private DiagnosticLogReport baseDiagnosticReport(SecureDeliveryTaskRequest request) {
+        DiagnosticLogReport report = new DiagnosticLogReport();
+        report.setTraceId(request != null ? request.getRequestId() : null);
+        report.setStage("publish_gateway");
+        report.setContentId(playlistId(request));
+        if (request != null && request.getTarget() != null) {
+            report.setBoardIp(request.getTarget().getIp());
+            report.setBoardPort(request.getTarget().getPort());
+        }
+        return report;
+    }
+
+    private void reportSecurePublishContent(SecureDeliveryTaskRequest request) {
+        if (dataReportService == null) {
+            return;
+        }
+        try {
+            dataReportService.reportSecurePublishAccepted(request);
+        } catch (Exception e) {
+            log.warn("[secure-delivery] report SECURE_PUBLISH content failed: requestId={}, error={}",
+                    request != null ? request.getRequestId() : null, e.getMessage());
+        }
+    }
+
+    private void reportSecurePublishDeliveredContent(String taskId,
+                                                     SecureDeliveryTaskRequest request,
+                                                     List<SecurePublishDeliveredFile> deliveredFiles) {
+        if (dataReportService == null || deliveredFiles == null || deliveredFiles.isEmpty()) {
+            return;
+        }
+        try {
+            dataReportService.reportSecurePublishDelivered(taskId, request, deliveredFiles);
+        } catch (Exception e) {
+            log.warn("[secure-delivery] report delivered SECURE_PUBLISH media failed but delivery result is kept: taskId={}, requestId={}, error={}",
+                    taskId, request != null ? request.getRequestId() : null, e.getMessage());
+        }
+    }
+
+    private Map<String, Object> baseDiagnosticDetail(String taskId,
+                                                     SecureDeliveryTaskRequest request) {
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("requestId", request != null ? request.getRequestId() : null);
+        detail.put("deliveryTaskId", taskId);
+        detail.put("sigmaPublishId", request != null ? request.getSigmaPublishId() : null);
+        detail.put("playlistId", playlistId(request));
+        detail.put("playlistDigest", playlistDigest(request));
+        detail.put("fileCount", request != null && request.getFiles() != null
+                ? request.getFiles().size() : 0);
+        detail.put("reportedBy", "publish_gateway");
+        if (request != null && request.getTarget() != null) {
+            Map<String, Object> target = new LinkedHashMap<>();
+            target.put("deviceId", request.getTarget().getDeviceId());
+            target.put("ip", request.getTarget().getIp());
+            target.put("port", request.getTarget().getPort());
+            target.put("vendorHint", request.getTarget().getVendorHint());
+            detail.put("target", target);
+        }
+        return detail;
+    }
+
+    private String playlistId(SecureDeliveryTaskRequest request) {
+        return request != null && request.getPlaylist() != null
+                ? request.getPlaylist().getPlaylistId() : null;
+    }
+
+    private String playlistDigest(SecureDeliveryTaskRequest request) {
+        return request != null && request.getPlaylist() != null
+                ? request.getPlaylist().getDigest() : null;
+    }
+
+    private String dedupKey(String prefix, String... parts) {
+        StringBuilder key = new StringBuilder(prefix);
+        if (parts != null) {
+            for (String part : parts) {
+                if (!isBlank(part)) {
+                    key.append(':').append(part.trim());
+                }
+            }
+        }
+        if (key.length() > 240) {
+            return key.substring(0, 240);
+        }
+        return key.toString();
+    }
+
+    private String firstNonBlank(String first, String second) {
+        return !isBlank(first) ? first : second;
     }
 
     // ════════════════════════════════════════════════════
@@ -390,6 +668,44 @@ public class SecureDeliveryServiceImpl implements SecureDeliveryService {
         return value == null || value.trim().isEmpty();
     }
 
+    private boolean shouldUseFileRef(SecureDeliveryTaskRequest.FileRef ref) {
+        if (!largeFileRefEnabled || ref == null || isBlank(ref.getFileUrl())) {
+            return false;
+        }
+        return isVideo(ref.getFileType()) || isVideo(ref.getFileName());
+    }
+
+    private boolean isVideo(String value) {
+        if (isBlank(value)) {
+            return false;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return "video".equals(normalized)
+                || "mp4".equals(normalized)
+                || "flv".equals(normalized)
+                || "avi".equals(normalized)
+                || normalized.endsWith(".mp4")
+                || normalized.endsWith(".flv")
+                || normalized.endsWith(".avi");
+    }
+
+    private StandardizedPublishPackage.FileEntry buildFileRefEntry(SecureDeliveryTaskRequest.FileRef ref) {
+        StandardizedPublishPackage.FileEntry entry = new StandardizedPublishPackage.FileEntry();
+        entry.setOrderNo(ref.getOrderNo());
+        entry.setFileName(ref.getFileName());
+        entry.setFileType(ref.getFileType());
+        entry.setTransferMode("FILE_REF");
+        entry.setDurationSeconds(ref.getDurationSeconds());
+        entry.setFileHash(ref.getFileHash());
+
+        StandardizedPublishPackage.RemoteFileRef fileRef = new StandardizedPublishPackage.RemoteFileRef();
+        fileRef.setUrl(ref.getFileUrl());
+        fileRef.setSha256(ref.getFileHash());
+        fileRef.setFileName(ref.getFileName());
+        entry.setFileRef(fileRef);
+        return entry;
+    }
+
     private byte[] downloadFile(String fileUrl) {
         if (fileUrl == null || fileUrl.isEmpty()) return null;
         try {
@@ -399,11 +715,11 @@ public class SecureDeliveryServiceImpl implements SecureDeliveryService {
             conn.setReadTimeout(downloadTimeoutMs);
             conn.setRequestMethod("GET");
 
-            int maxBytes = maxFileSizeMb * 1024 * 1024;
+            long maxBytes = Math.max(1L, maxFileSizeMb) * 1024L * 1024L;
             try (InputStream is = conn.getInputStream()) {
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 byte[] buf = new byte[8192];
-                int total = 0;
+                long total = 0L;
                 int n;
                 while ((n = is.read(buf)) > 0) {
                     total += n;

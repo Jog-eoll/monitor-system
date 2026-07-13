@@ -12,7 +12,8 @@ import java.util.List;
  * 不再塞入单条 {@link StandardizedMessage}，而是作为独立的批量传输单元。
  * </p>
  *
- * <p>v1 文件传输方式：文件内容以 Base64 编码嵌入 {@code files[*].contentBase64}。</p>
+ * <p>v1 小文件传输方式：文件内容以 Base64 编码嵌入 {@code files[*].contentBase64}。</p>
+ * <p>大视频兼容方式：保留原字段，额外通过 {@code files[*].fileRef} 传递下载引用。</p>
  */
 @Data
 public class StandardizedPublishPackage implements Serializable {
@@ -69,9 +70,24 @@ public class StandardizedPublishPackage implements Serializable {
         private String fileType;
         /** 文件内容 Base64 编码 */
         private String contentBase64;
+        /** INLINE_BASE64 / FILE_REF; empty means legacy INLINE_BASE64 */
+        private String transferMode;
+        /** Remote download reference for large files. */
+        private RemoteFileRef fileRef;
+        /** File size in bytes, optional. */
+        private Long sizeBytes;
         private Integer durationSeconds;
         /** 文件 SHA-256 摘要（可选） */
         private String fileHash;
+    }
+
+    @Data
+    public static class RemoteFileRef implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String url;
+        private String sha256;
+        private Long sizeBytes;
+        private String fileName;
     }
 
     @Data

@@ -267,7 +267,30 @@ public class ControlDeliveryServiceImpl implements ControlDeliveryService {
                 throw new IllegalArgumentException("encryptedCommandPackage 不能为空");
             }
             byte[] encryptedBytes = Base64.getDecoder().decode(request.getEncryptedCommandPackage());
-            byte[] plainBytes = cryptoService.decrypt(encryptedBytes);
+            byte[] plainBytes;
+            try {
+                plainBytes = cryptoService.decrypt(encryptedBytes);
+                if (plainBytes == null || plainBytes.length == 0) {
+                    throw new IllegalStateException("empty decrypt result");
+                }
+            } catch (Exception decryptEx) {
+                // 明文兼容：平台侧无 CryptoService，尝试直接将 Base64 解码后的字节作为明文 JSON 降级处理
+                String plainText = new String(encryptedBytes, StandardCharsets.UTF_8);
+                JSONObject plainFallback = null;
+                try {
+                    plainFallback = JSON.parseObject(plainText);
+                } catch (Exception parseEx) {
+                    plainFallback = null;
+                }
+                if (plainFallback != null && plainFallback.getString("command") != null) {
+                    log.warn("[控制投递] 控制任务包为明文 JSON，降级处理: commandTaskId={}, command={}",
+                            request.getCommandTaskId(), plainFallback.getString("command"));
+                    plainBytes = plainText.getBytes(StandardCharsets.UTF_8);
+                } else {
+                    throw new IllegalArgumentException(
+                            "控制任务包解密失败: " + decryptEx.getMessage(), decryptEx);
+                }
+            }
             JSONObject plain = JSON.parseObject(new String(plainBytes, StandardCharsets.UTF_8));
             if (plain == null) {
                 throw new IllegalArgumentException("控制任务包为空");

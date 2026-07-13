@@ -63,6 +63,9 @@ public class ReportPayload {
     /** Total item count of the playlist batch. */
     private Integer playBatchSize;
 
+    /** Original publish request ID for matching diagnostic_event_log.trace_id. */
+    private String publishRequestId;
+
     // ===== 协议标识字段 =====
 
     /** 协议名称，如 JetFileII-Type1、Sigma-FileTransfer、Nova-FileTransfer */
