@@ -17,8 +17,8 @@ spring:
       enabled: false
   servlet:
     multipart:
-      max-file-size: 2048MB
-      max-request-size: 2300MB
+      max-file-size: ${CONTENT_PUBLISH_MULTIPART_MAX_FILE_SIZE:6144MB}
+      max-request-size: ${CONTENT_PUBLISH_MULTIPART_MAX_REQUEST_SIZE:7168MB}
       file-size-threshold: 0B
 
 registry:
@@ -54,17 +54,18 @@ control-command:
   gateway-url: ${CONTROL_COMMAND_GATEWAY_URL:http://192.168.1.25:8092}
 
 http-client:
-  connect-timeout-ms: ${HTTP_CLIENT_CONNECT_TIMEOUT_MS:10000}
-  read-timeout-ms: ${HTTP_CLIENT_READ_TIMEOUT_MS:120000}
+  connect-timeout-ms: ${HTTP_CLIENT_CONNECT_TIMEOUT_MS:30000}
+  read-timeout-ms: ${HTTP_CLIENT_READ_TIMEOUT_MS:600000}
 
 content-publish:
   gateway-url: ${CONTENT_PUBLISH_GATEWAY_URL:${CONTROL_COMMAND_GATEWAY_URL:http://192.168.1.25:8092}}
-  download-timeout-ms: ${CONTENT_PUBLISH_DOWNLOAD_TIMEOUT_MS:120000}
+  download-timeout-ms: ${CONTENT_PUBLISH_DOWNLOAD_TIMEOUT_MS:600000}
   max-file-size-mb: ${CONTENT_PUBLISH_MAX_FILE_SIZE_MB:50}
   v2:
     file-download-base-url: ${CONTENT_PUBLISH_V2_FILE_DOWNLOAD_BASE_URL:http://192.168.1.168:7081}
-    max-file-size-mb: ${CONTENT_PUBLISH_V2_MAX_FILE_SIZE_MB:2048}
-    temp-file-ttl-ms: ${CONTENT_PUBLISH_V2_TEMP_FILE_TTL_MS:900000}
+    max-file-size-mb: ${CONTENT_PUBLISH_V2_MAX_FILE_SIZE_MB:6144}
+    temp-file-ttl-ms: ${CONTENT_PUBLISH_V2_TEMP_FILE_TTL_MS:7800000}
+    delivery-timeout-ms: ${CONTENT_PUBLISH_V2_DELIVERY_TIMEOUT_MS:7200000}
 
 secure-publish:
   permit:
