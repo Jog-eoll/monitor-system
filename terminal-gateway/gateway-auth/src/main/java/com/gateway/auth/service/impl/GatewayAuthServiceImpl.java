@@ -32,12 +32,11 @@ public class GatewayAuthServiceImpl implements GatewayAuthService {
 
     @Override
     public boolean reAuthenticate() {
-        log.info("=== 手动触发重新认证 ===");
+        log.info("=== 手动触发重新认证（等待握手完成）===");
         try {
-            cryptoService.triggerReAuthenticate();
-            return true;
+            return cryptoService.reAuthenticate("HTTP_GATEWAY_AUTH");
         } catch (Exception e) {
-            log.error("重新认证触发异常", e);
+            log.error("重新认证异常", e);
             return false;
         }
     }

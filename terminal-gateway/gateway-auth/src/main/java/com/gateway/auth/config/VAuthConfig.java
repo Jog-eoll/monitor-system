@@ -56,4 +56,50 @@ public class VAuthConfig {
 
     /** SVAC2 编码加密模式（true=EncryptPackData/DecryptPackData，false=EncryptData/DecryptData，默认false） */
     private Boolean svacMode = false;
+
+    /**
+     * Independent physical gate for the SVAC USB module.
+     *
+     * This does not change UKey authentication or the VAuth crypto API choice.
+     * When required=false, the gate is disabled and existing behavior is kept.
+     */
+    private SvacModule svacModule = new SvacModule();
+
+    @Data
+    public static class SvacModule {
+        /**
+         * true = data paths fail closed when the configured SVAC USB module is absent.
+         */
+        private Boolean required = false;
+
+        /**
+         * Optional explicit device marker, for example /dev/svac-module0.
+         */
+        private String devicePath = "";
+
+        /**
+         * Linux USB sysfs root used for VID/PID/serial matching.
+         */
+        private String sysfsRoot = "/sys/bus/usb/devices";
+
+        /**
+         * USB vendor id, for example 1a2b or 0x1a2b. Used together with productId.
+         */
+        private String vendorId = "";
+
+        /**
+         * USB product id, for example 3c4d or 0x3c4d. Used together with vendorId.
+         */
+        private String productId = "";
+
+        /**
+         * Optional USB serial number. If set, it must match the detected device serial.
+         */
+        private String serial = "";
+
+        /**
+         * Minimum interval between sysfs scans on hot data paths.
+         */
+        private Long scanIntervalMs = 200L;
+    }
 }

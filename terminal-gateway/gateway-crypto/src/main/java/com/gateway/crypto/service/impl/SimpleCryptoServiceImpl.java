@@ -28,6 +28,22 @@ public class SimpleCryptoServiceImpl implements CryptoService {
     private static final String SECRET_KEY = "PublishGateway16";
     private static final String ALGORITHM = "AES";
 
+    @Override
+    public boolean isAuthenticated() {
+        return true;
+    }
+
+    @Override
+    public void triggerReAuthenticate() {
+        // mock no-op
+    }
+
+    @Override
+    public boolean reAuthenticate(String reason) {
+        log.info("[Mock] reAuthenticate accepted, reason={}", reason);
+        return true;
+    }
+
     /**
      * AES 加密（对应发布网关加密，终端网关通常用于回传情报板响应给发布网关）
      */

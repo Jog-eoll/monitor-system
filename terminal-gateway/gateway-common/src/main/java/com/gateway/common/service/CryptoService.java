@@ -43,10 +43,34 @@ public interface CryptoService {
     }
 
     /**
+     * Independent physical SVAC USB module gate.
+     * Default keeps existing mock and non-gated behavior.
+     */
+    default boolean isSvacModuleReady() {
+        return true;
+    }
+
+    default String getSvacModuleStatus() {
+        return "DISABLED";
+    }
+
+    /**
      * 手动触发重新认证（UKey 重新插入后可调用，无需等待插拔事件）
      * Mock 模式为空操作。
      */
     default void triggerReAuthenticate() {
         // 默认空实现（Mock模式）
+    }
+
+    /**
+     * Re-run mutual authentication and wait for completion.
+     * MQTT REAUTH must use this (SUCCESS means handshake finished).
+     *
+     * @param reason diagnostic reason
+     * @return true when handshake completed successfully
+     */
+    default boolean reAuthenticate(String reason) {
+        triggerReAuthenticate();
+        return isAuthenticated();
     }
 }

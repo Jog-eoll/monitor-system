@@ -6,6 +6,7 @@ import com.gateway.auth.jna.VAuthSDKLibrary;
 import com.gateway.auth.ukey.UkeyEventHandler;
 import com.gateway.common.service.CryptoService;
 import com.gateway.common.service.SvacFileCryptoService;
+import com.gateway.crypto.service.SvacModulePresenceGuard;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.PointerByReference;
@@ -107,6 +108,9 @@ public class CryptoServiceImpl implements CryptoService, SvacFileCryptoService {
     @Resource
     private UkeyEventHandler ukeyEventHandler;
 
+    @Resource
+    private SvacModulePresenceGuard svacModulePresenceGuard;
+
     /**
      * 解密侧密钥/证书缓存：SDK 触发 QueryKeyCallback 时从此缓存取值
      * key = "authId_ver"（密钥）或 "authId_type"（证书）
@@ -184,8 +188,18 @@ public class CryptoServiceImpl implements CryptoService, SvacFileCryptoService {
     }
 
     @Override
+    public boolean isSvacModuleReady() {
+        return svacModulePresenceGuard.isReady();
+    }
+
+    @Override
+    public String getSvacModuleStatus() {
+        return svacModulePresenceGuard.getStatus();
+    }
+
+    @Override
     public boolean isReady() {
-        return authenticated && deviceHandle >= 0;
+        return authenticated && deviceHandle >= 0 && svacModulePresenceGuard.isReady();
     }
 
     @Override
@@ -202,6 +216,9 @@ public class CryptoServiceImpl implements CryptoService, SvacFileCryptoService {
     public synchronized byte[] encryptPackData(byte[] data) {
         if (data == null || data.length == 0) {
             return data;
+        }
+        if (!svacModulePresenceGuard.ensureReady("encryptPackData")) {
+            return null;
         }
         if (!authenticated || deviceHandle < 0) {
             scheduleReAuthenticateIfNecessary();
@@ -220,6 +237,9 @@ public class CryptoServiceImpl implements CryptoService, SvacFileCryptoService {
         if (data == null || data.length == 0) {
             return data;
         }
+        if (!svacModulePresenceGuard.ensureReady("decryptPackData")) {
+            return null;
+        }
         if (!authenticated || deviceHandle < 0) {
             scheduleReAuthenticateIfNecessary();
             log.error("SVAC pack decrypt refused: authenticated={}, handle={}, dataLen={}",
@@ -234,8 +254,16 @@ public class CryptoServiceImpl implements CryptoService, SvacFileCryptoService {
 
     @Override
     public void triggerReAuthenticate() {
-        log.info("[手动触发] 重新认证...");
+        log.info("[手动触发] 重新认证(async)...");
         ukeyOpenExecutor.submit(this::reInitUkey);
+    }
+
+    @Override
+    public boolean reAuthenticate(String reason) {
+        log.info("[REAUTH] start waitable re-auth, reason={}", reason);
+        // Synchronous path so MQTT REAUTH SUCCESS means handshake finished.
+        reInitUkey();
+        return isAuthenticated();
     }
 
     // ===================== CryptoService 加解密实现 =====================
@@ -248,6 +276,9 @@ public class CryptoServiceImpl implements CryptoService, SvacFileCryptoService {
     public synchronized byte[] encrypt(byte[] data) {
         if (data == null || data.length == 0) {
             return data;
+        }
+        if (!svacModulePresenceGuard.ensureReady("encrypt")) {
+            return null;
         }
         if (!authenticated || deviceHandle < 0) {
             scheduleReAuthenticateIfNecessary();
@@ -310,6 +341,9 @@ public class CryptoServiceImpl implements CryptoService, SvacFileCryptoService {
     public synchronized byte[] decrypt(byte[] data) {
         if (data == null || data.length == 0) {
             return data;
+        }
+        if (!svacModulePresenceGuard.ensureReady("decrypt")) {
+            return null;
         }
         if (!authenticated || deviceHandle < 0) {
             scheduleReAuthenticateIfNecessary();
@@ -388,6 +422,9 @@ public class CryptoServiceImpl implements CryptoService, SvacFileCryptoService {
     private byte[] doFileDataCrypto(String operation, byte[] data, boolean flag) {
         if (data == null || data.length == 0) {
             return data;
+        }
+        if (!svacModulePresenceGuard.ensureReady("file-" + operation)) {
+            return null;
         }
         if (!authenticated || deviceHandle < 0) {
             scheduleReAuthenticateIfNecessary();
