@@ -7,7 +7,7 @@ spring:
   application:
     name: monitor-platform-monolith
   profiles:
-    active: dev
+    active: dev,monolith
 
   # 数据源配置
   datasource:

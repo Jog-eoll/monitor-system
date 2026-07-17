@@ -69,6 +69,17 @@
                     <groupId>com.alibaba.cloud</groupId>
                     <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
                 </exclusion>
+                <!--
+                    monitor-platform-log 在 m2 仓库里是 spring-boot-maven-plugin repackage 产生的 fat jar，
+                    其 BOOT-INF/lib/ 嵌套了 monitor-platform-common、spring-data-redis、ehcache、cache-api 等。
+                    单体模块已在顶层显式依赖 monitor-platform-common，若不排除此处嵌套的 common，
+                    RedisConfig（CachingConfigurerSupport）会被两个 classpath 根重复加载，
+                    触发 "2 implementations of CachingConfigurer were found" 启动失败。
+                -->
+                <exclusion>
+                    <groupId>com.monitorplatform</groupId>
+                    <artifactId>monitor-platform-common</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
 

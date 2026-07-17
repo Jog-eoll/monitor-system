@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.cache.CacheManager;
-import org.springframework.cache.annotation.CachingConfigurerSupport;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,7 +28,7 @@ import java.time.Duration;
 @Configuration
 @EnableCaching
 @ConditionalOnClass(RedisConnectionFactory.class)
-public class RedisConfig extends CachingConfigurerSupport {
+public class RedisConfig {
 
 	/**
 	 * 选择redis作为默认缓存工具 cacheManager只针对注解缓存有效,只使用redisTemplate不需要配置
