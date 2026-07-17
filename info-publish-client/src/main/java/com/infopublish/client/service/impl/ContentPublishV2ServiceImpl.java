@@ -59,6 +59,9 @@ public class ContentPublishV2ServiceImpl implements ContentPublishV2Service {
     @Value("${content-publish.v2.temp-file-ttl-ms:900000}")
     private long tempFileTtlMs;
 
+    @Value("${content-publish.v2.delivery-timeout-ms:600000}")
+    private int defaultDeliveryTimeoutMs;
+
     private final ConcurrentHashMap<String, ContentPublishResponse> idempotentCache = new ConcurrentHashMap<>();
 
     @Override
@@ -521,7 +524,7 @@ public class ContentPublishV2ServiceImpl implements ContentPublishV2Service {
         if (timeout != null && hasText(String.valueOf(timeout))) {
             return Integer.valueOf(String.valueOf(timeout));
         }
-        return null;
+        return defaultDeliveryTimeoutMs > 0 ? defaultDeliveryTimeoutMs : null;
     }
 
     private boolean booleanParam(Map<String, Object> params, String key, boolean defaultValue) {
