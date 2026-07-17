@@ -64,6 +64,9 @@ public class ContentDetectionService {
 
         String contentType = (request.getContentType() != null && !request.getContentType().isEmpty())
                 ? request.getContentType() : "image";
+        if (!isSupportedContentType(contentType)) {
+            throw new IllegalArgumentException("unsupported content type: " + contentType);
+        }
         DetectionRecordResolution resolution = getOrCreatePendingRecord(request, contentType);
         ContentMonitor record = resolution.record;
         if (!resolution.created) {
@@ -101,6 +104,12 @@ public class ContentDetectionService {
             contentMonitorMapper.updateById(record);
             return record;
         }
+    }
+
+    private boolean isSupportedContentType(String contentType) {
+        return "image".equals(contentType)
+                || "text".equals(contentType)
+                || "video".equals(contentType);
     }
 
     private DetectionRecordResolution getOrCreatePendingRecord(QwenDetectionRequestDTO request, String contentType) {

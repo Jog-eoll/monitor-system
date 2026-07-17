@@ -107,8 +107,28 @@ public interface ContentMonitorMapper extends BaseMapper<ContentMonitor> {
     /**
      * 按情报板 board_ip + board_port 查询最新一条内容
      */
-    @Select("SELECT * FROM t_content_monitor WHERE board_ip = #{boardIp} AND board_port = #{boardPort} ORDER BY receive_time DESC LIMIT 1")
+    @Select("SELECT * FROM t_content_monitor WHERE board_ip = #{boardIp} AND board_port = #{boardPort} " +
+            "ORDER BY receive_time DESC, id DESC LIMIT 1")
     ContentMonitor selectLatestByBoard(@Param("boardIp") String boardIp, @Param("boardPort") Integer boardPort);
+
+    /**
+     * 查询指定情报板最近一次已完整接收的播放批次。
+     */
+    @Select("SELECT content.* FROM t_content_monitor content " +
+            "INNER JOIN (" +
+            "SELECT play_batch_id, MAX(receive_time) AS batch_receive_time, MAX(id) AS batch_max_id " +
+            "FROM t_content_monitor " +
+            "WHERE board_ip = #{boardIp} AND board_port = #{boardPort} " +
+            "AND play_batch_id IS NOT NULL AND play_batch_id <> '' " +
+            "AND play_batch_seq IS NOT NULL AND play_batch_size > 0 " +
+            "GROUP BY play_batch_id " +
+            "HAVING COUNT(DISTINCT play_batch_seq) >= MAX(play_batch_size) " +
+            "ORDER BY batch_receive_time DESC, batch_max_id DESC LIMIT 1" +
+            ") latest_batch ON latest_batch.play_batch_id = content.play_batch_id " +
+            "WHERE content.board_ip = #{boardIp} AND content.board_port = #{boardPort} " +
+            "ORDER BY content.play_batch_seq ASC, content.receive_time ASC, content.id ASC")
+    List<ContentMonitor> selectLatestCompleteBatchByBoard(@Param("boardIp") String boardIp,
+                                                          @Param("boardPort") Integer boardPort);
 
     /**
      * 查询所有不重复的 gateway_id（用于聚合接口遍历）

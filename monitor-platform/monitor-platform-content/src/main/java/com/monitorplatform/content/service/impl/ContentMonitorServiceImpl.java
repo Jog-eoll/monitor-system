@@ -655,11 +655,7 @@ public class ContentMonitorServiceImpl implements ContentMonitorService {
             }
         }
 
-        AlarmRecordVO activeAlarm = null;
-        String latestContentId = latest == null ? null : normalizeContentId(latest.getContentId());
-        if (latestContentId != null && alarmByContentId != null) {
-            activeAlarm = alarmByContentId.get(latestContentId);
-        }
+        AlarmRecordVO activeAlarm = selectActiveAlarm(latestContents, alarmByContentId);
 
         List<ContentSummaryVO> contentSummaryList = new ArrayList<>();
         for (ContentMonitor cm : latestContents) {
@@ -676,6 +672,57 @@ public class ContentMonitorServiceImpl implements ContentMonitorService {
         return card;
     }
 
+    private AlarmRecordVO selectActiveAlarm(List<ContentMonitor> contents,
+                                            Map<String, AlarmRecordVO> alarmByContentId) {
+        if (contents == null || contents.isEmpty()
+                || alarmByContentId == null || alarmByContentId.isEmpty()) {
+            return null;
+        }
+
+        AlarmRecordVO selected = null;
+        for (ContentMonitor content : contents) {
+            if (content == null) {
+                continue;
+            }
+            String contentId = normalizeContentId(content.getContentId());
+            if (contentId == null) {
+                continue;
+            }
+            AlarmRecordVO candidate = alarmByContentId.get(contentId);
+            if (candidate != null && isNewerAlarm(candidate, selected)) {
+                selected = candidate;
+            }
+        }
+        return selected;
+    }
+
+    private boolean isNewerAlarm(AlarmRecordVO candidate, AlarmRecordVO current) {
+        if (current == null) {
+            return true;
+        }
+        LocalDateTime candidateTime = candidate.getAlarmTime();
+        LocalDateTime currentTime = current.getAlarmTime();
+        if (candidateTime != null && currentTime == null) {
+            return true;
+        }
+        if (candidateTime == null && currentTime != null) {
+            return false;
+        }
+        if (candidateTime != null) {
+            int timeComparison = candidateTime.compareTo(currentTime);
+            if (timeComparison != 0) {
+                return timeComparison > 0;
+            }
+        }
+
+        Long candidateId = candidate.getId();
+        Long currentId = current.getId();
+        if (candidateId == null) {
+            return false;
+        }
+        return currentId == null || candidateId > currentId;
+    }
+
     private String normalizeContentId(String contentId) {
         if (contentId == null) {
             return null;
@@ -687,8 +734,7 @@ public class ContentMonitorServiceImpl implements ContentMonitorService {
     private boolean isSupportedContentType(String contentType) {
         return "image".equals(contentType)
                 || "text".equals(contentType)
-                || "video".equals(contentType)
-                || "playlist".equals(contentType);
+                || "video".equals(contentType);
     }
 
     private boolean shouldRecognize(String contentType) {
@@ -698,15 +744,6 @@ public class ContentMonitorServiceImpl implements ContentMonitorService {
     }
 
     private void saveContentRecord(ContentMonitor record) {
-        if (record != null && "playlist".equals(record.getContentType())) {
-            ContentMonitor existing = contentMonitorMapper.selectByContentId(record.getContentId());
-            if (existing != null && existing.getId() != null) {
-                record.setId(existing.getId());
-                record.setCreateTime(existing.getCreateTime());
-                contentMonitorMapper.updateById(record);
-                return;
-            }
-        }
         contentMonitorMapper.insert(record);
     }
 
@@ -719,6 +756,17 @@ public class ContentMonitorServiceImpl implements ContentMonitorService {
             List<ContentMonitor> single = new ArrayList<>(1);
             single.add(latest);
             return single;
+        }
+        String boardIp = normalizeBlank(latest.getBoardIp());
+        Integer boardPort = latest.getBoardPort();
+        Integer playBatchSize = latest.getPlayBatchSize();
+        if (boardIp != null && boardPort != null && playBatchSize != null && playBatchSize > 0) {
+            List<ContentMonitor> completeBatch =
+                    contentMonitorMapper.selectLatestCompleteBatchByBoard(boardIp, boardPort);
+            if (completeBatch == null || completeBatch.isEmpty()) {
+                return Collections.emptyList();
+            }
+            return completeBatch;
         }
         List<ContentMonitor> batchContents = contentMonitorMapper.selectBatchByPlayBatchId(playBatchId);
         if (batchContents == null || batchContents.isEmpty()) {
