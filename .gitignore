@@ -24,6 +24,8 @@ Thumbs.db
 # AI tool configs
 .codex/
 .qoder/
+.workbuddy/
+.zcode/
 .docx_work/
 
 # Bundled tools
@@ -37,8 +39,19 @@ dist/
 
 # Temp/Output directories
 tmp/
+.tmp/
+tmp-publish/
 outputs/
+/output/
 deploy-standalone/
+
+# Local inspection and backup artifacts
+.dep-tree.txt
+*.inspect.ndjson
+**/__pycache__/
+*.py[cod]
+*.jar.bak-*
+nul
 
 # Deploy packages
 *.zip
