@@ -14,6 +14,7 @@
 
 | ID | 领域 | 关键词 | 典型现象 | 优先处理 |
 | --- | --- | --- | --- | --- |
+| DBG-20260718-031 | SVN revision log encoding | `svn:log`, `--encoding UTF-8`, `-F`, `E175008`, `pre-revprop-change` | Windows 上 SVN 文件提交成功，但中文修订说明回读为乱码且服务器禁止修改 revprop | 提交时显式指定日志文件编码，立即回读验证；乱码后由管理员启用 hook 再修复 |
 | DBG-20260717-030 | Secure publish monitoring batch replacement | `SPB-`, `playBatchId`, `playBatchSeq`, `playBatchSize`, `contentId` | The screen replaces its playlist but the regulatory view keeps media from previous publish rounds | Generate one monitoring batch per completed delivery and activate only the latest complete batch per board |
 | DBG-20260706-008 | Terminal device discovery sync | `POST /api/devices/scan`, `/discovery/scan`, `led_controller`, `unified_device_info` | Terminal gateway can list QingSong/JetFileII devices but platform search/device list misses some of them | Separate terminal gateway screen scan from platform mDNS service discovery, then verify sync/registration path |
 | DBG-20260706-009 | Terminal gateway startup | `DeviceCapability`, `DEVICE_SEARCH`, `gateway-device-protocol`, `gateway-device-core` | New terminal gateway image restarts before HTTP health is available | Fix duplicate capability registration before treating SVAC or UKey config as the blocker |
@@ -470,6 +471,19 @@
 - Verification: The earlier gateway recovery tests remain valid. On 2026-07-16, `GatewayAuthRecoveryPolicyAsyncTest` failed first because a blocked publish prevented heartbeat callback return, then passed after asynchronous single-flight dispatch; the Forward suite passed 10/10. On `192.168.1.25`, the old image repeatedly disconnected about 60 seconds after every reconnect, EMQX showed `inflight=32`, `enqueued=1000`, and about 383% CPU. After backing up the image/config, deleting the session, and deploying image `ca95f942df93`, both gateway REAUTH commands completed `PROCESSING -> SUCCESS`; over three minutes the client stayed connected with `inflight=0`, `enqueued=0`, continuous 30-second heartbeats, no timeout errors, and EMQX CPU fell to about 12%.
 - Files/modules: `publish-gateway/gateway-udp-proxy/src/main/java/com/publishgateway/udpproxy/mqtt/MqttConnectionManager.java`, `publish-gateway/gateway-udp-proxy/src/main/java/com/publishgateway/udpproxy/mqtt/HeartbeatPublisher.java`, `terminal-gateway/gateway-udp-proxy/src/main/java/com/gateway/udpproxy/mqtt/MqttConnectionManager.java`, `terminal-gateway/gateway-udp-proxy/src/main/java/com/gateway/udpproxy/mqtt/HeartbeatPublisher.java`, `monitor-platform/monitor-platform-forward/src/main/java/com/monitorplatform/forward/service/MqttCommandPublishService.java`, `monitor-platform/monitor-platform-forward/src/main/java/com/monitorplatform/forward/service/GatewayAuthRecoveryPolicy.java`.
 - Prevention rule: Do not diagnose `Timed out waiting for a response from the server` as a monitor-platform business response timeout. First prove broker connectivity, ACL/clientId alignment, Paho callback thread state, EMQX inflight/session queue, and client lifecycle. Never call a synchronous MQTT publish from Paho's `messageArrived` callback path.
+
+### DBG-20260718-031 SVN 中文修订说明必须显式指定日志文件编码
+
+- 首次记录：2026-07-18
+- 领域：SVN 提交、Windows/PowerShell 编码、修订属性维护
+- 关键词：`svn:log`, `svn commit`, `--encoding UTF-8`, `-F`, `svn propset --revprop`, `E175008`, `pre-revprop-change`
+- 现象：文件内容已成功提交，但 `svn log --xml` 回读中文修订说明时显示为 `è§„èŒƒ...` 等乱码；文件 diff 和修订号本身正常。
+- 触发条件：Windows PowerShell 中把无 BOM UTF-8 日志文件通过 `svn commit -F <file>` 提交，但没有同时传入 `--encoding UTF-8`。
+- 根因：SVN CLI 按本机代码页解释日志文件，再把错误解码后的文本写入 `svn:log`。提交后修复属于 revision property 变更；服务器未配置 `pre-revprop-change` hook 时会以 `E175008` 拒绝修改。
+- 解决方案：中文日志统一写入 UTF-8 文件，并使用 `svn commit --encoding UTF-8 -F <file> ...`；提交后立即以 UTF-8 读取 `svn log --xml -r <revision>`。若已经乱码，停止追加错误修订，由仓库管理员启用受控 `pre-revprop-change` hook 后再用 `svn propset --revprop -r <revision> --encoding UTF-8 svn:log -F <file>` 修复。无法启用 hook 时，后续提交暂用 ASCII 日志。
+- 验证方式：本轮 `r253-r258` 的文件提交成功且 clean SVN 工作副本为 `r258`，但 UTF-8 日志回读确认六条 `svn:log` 已乱码；对 `r253` 的 revprop 修复被服务器以 `E175008: Repository has not been enabled to accept revision propchanges` 拒绝。
+- 涉及文件/模块：`.agents/debug-ledger.md`、SVN 仓库 revision properties、服务端 hook 配置。
+- 预防规则：中文 SVN 日志必须同时使用 UTF-8 日志文件和 `--encoding UTF-8`，提交后立即回读；未完成回读前不连续提交下一组变更。
 
 ```markdown
 ### DBG-YYYYMMDD-NNN 标题
